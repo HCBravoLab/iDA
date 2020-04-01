@@ -1,7 +1,7 @@
 Package: iDA
 Type: Package
 Title: Define embedding space for data with clustered architecture
-Version: 0.1.0
+Version: 0.99.0
 Author: Theresa Alexander <reesyxan@umd.edu>
 Maintainer: Theresa Alexander <reesyxan@umd.edu>
 Imports: igraph, Seurat (<= 2.3.0), irlba, FNN, RANN
