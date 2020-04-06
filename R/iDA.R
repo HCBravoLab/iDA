@@ -3,18 +3,9 @@
 #'  Takes scaled data and iterates between clustering using the Louvain community detection method and embedding in LDA space, then recluster in
 #'  the LDA transformed data space.
 #'@param data.use A dataframe of scaled data to find embedding for. (sample x feature)
-#'@param x.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
-#'@param x.high.cutoff Top cutoff on x-axis for identifying variable genes
-#'@param y.cutoff Bottom cutoff on y-axis for identifying variable genes
-#'@param y.high.cutoff Top cutoff on y-axis for identifying variable genes
-#'@param n.bin Total number of bins to use in the scaled analysis
-#'@param binning.method  Specifies how the bins should be computed. Available methods are:
-#' \itemize{
-#' \item{equal_width:}{ each bin is of equal width along the x-axis [default]}
-#' \item{equal_frequency:}{ each bin contains an equal number of genes (can increase
-#' statistical power to detect overdispersed genes at high expression values, at
-#' the cost of reduced resolution along the x-axis)}
-#' }
+#'@param mean.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
+#'@param mean.high.cutoff Top cutoff on x-axis for identifying variable genes
+#'@param dispersion.cutoff Bottom cutoff on y-axis for identifying variable genes
 #' @param display.progress show progress bar for calculations
 #' @param dims.use A vector of the dimensions to use in construction of the SNN
 #' graph (e.g. To use the first 10 PCs, pass 1:10)
@@ -42,56 +33,41 @@
 #' \item{QDA:}{use quadratic discriminant analysis to find discriminants between classes (allows for different covariances between clusters)
 #'
 #'
-#' @importFrom irlba irlba
+#' @import irlba 
+#' @import igraph
+#' @import FNN
+#' @import RANN 
 #'@return n number of dataframes for each cluster's data
 #'
 #'@export
 
 
-library("igraph")
-library(irlba)
-library("FNN")
-library(RANN)
 
 
 
-
-#controls <- function(){
- # x.low.cutoff = 0.1
-#  x.high.cutoff = 8
-#  y.cutoff = 1
-#  y.high.cutoff = Inf
-#  num.bin = 20
-#  binning.method = "equal_width"
-#  k.param = 10
-#  prune.SNN = 1/15
-#  nn.eps = 0
-
-#}
-
-
-iDA <- function(data.use, controls = controls,  x.low.cutoff = 0.1, x.high.cutoff = 50,
-                        y.cutoff = 1,
-                        y.high.cutoff = Inf,
-                        num.bin = 20,
-                        binning.method = "equal_width",
-                        k.param = 10,
-                        prune.SNN = 1/15,
-                        nn.eps = 0,
-                        reduction.type = "LDA",
-                        display.progress = TRUE,
-                        dims.use = 10,
-                        diag = FALSE, 
-                        set.seed = FALSE
+iDA <- function(data.use,  
+                mean.low.cutoff = 0.1, 
+                mean.high.cutoff = 8,
+                ydispersion.cutoff = 1,
+                k.param = 10,
+                prune.SNN = 1/15,
+                nn.eps = 0,
+                reduction.type = "LDA",
+                display.progress = TRUE,
+                dims.use = 10,
+                diag = FALSE, 
+                set.seed = FALSE,
+                resolution = 1.0
                 ){
 
 
   #find variable features
 svd_time = 0 
 
-  var.features <- FindVariableFeatures(data.use, x.low.cutoff = x.low.cutoff, x.high.cutoff = x.high.cutoff, y.cutoff = y.cutoff,
-                                 y.high.cutoff = y.high.cutoff, num.bin = num.bin, binning.method = binning.method, display.progress = display.progress)
-
+  dispersions <- Seurat::FindVariableFeatures(data.use, selection.method = "dispersion")
+  var.features <- rownames(dispersions[dispersions$mvp.dispersion.scaled > dispersion.cutoff & dispersions$mvp.mean > mean.low.cutoff & dispersions$mvp.mean < mean.high.cutoff])                            
+                                               
+                                             
   #calculate svd for covariance matrix of variable_features
 
 start_svd = Sys.time()
@@ -117,7 +93,7 @@ start_louvain = Sys.time()
 
     #cluster
       clusters = c(rep(1, dim(snn)[1]))
-      clusters <- cbind(clusters, RunModularityClustering(SNN = snn, resolution = 1, print.output = FALSE))
+      clusters <- cbind(clusters, RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE))
 end_louvain = Sys.time()
       rownames(clusters) <- clusters$cells
       clusters = clusters[,-2]
@@ -176,9 +152,9 @@ start_louvain = Sys.time()
 
       #cluster
         if (!is.numeric(set.seed)){
-        currentclust = RunModularityClustering(SNN = snn, resolution = 1, print.output = FALSE)
+        currentclust = RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE)
         } else if (is.numeric(set.seed)){
-          currentclust = RunModularityClustering(SNN = snn, resolution = 1, print.output = FALSE, random.seed = set.seed)
+          currentclust = RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE, random.seed = set.seed)
         }
         clusters <- cbind(clusters, currentclust$ident)
         i = i + 1
