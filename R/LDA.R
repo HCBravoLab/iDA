@@ -1,3 +1,56 @@
+
+#'  Find Variable Genes 
+#'
+#'  Takes in dataframe to be split and an cluster identifier column and outputs n number of dataframes (n = number of clusters)
+#'@param data.use A scaled dataframe to find the variable features. features are rows, samples are columns.
+#'
+#'@return variable genes
+#'
+#'@export
+
+VariableGenes <- function(data.use){
+  #calculate logged means and VMR
+    ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
+    dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
+
+    names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
+    dispersions[is.na(x = dispersions)] <- 0
+    ExpMeans[is.na(x = ExpMeans)] <- 0
+
+  #create bins to scale mean and dispersions
+    num.bin <- 20
+    data.x.bin <- cut(x = ExpMeans, breaks = num.bin)
+
+    names(x = data.x.bin) <- names(x = ExpMeans)
+
+    mean.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = mean)
+    sd.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = sd)
+  
+  #scale dispersions
+    scaled.dispersions <- (dispersions - mean.y[as.numeric(x = data.x.bin)]) /
+      sd.y[as.numeric(x = data.x.bin)]
+    names(x = scaled.dispersions) <- names(x = ExpMeans)
+
+
+  #find variable features
+    var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff & 
+                                    ExpMeans > mean.low.cutoff & 
+                                    ExpMeans < mean.high.cutoff])  
+  return(var.features)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 #'  Split dataset by cluster
 #'
 #'  Takes in dataframe to be split and an cluster identifier column and outputs n number of dataframes (n = number of clusters)

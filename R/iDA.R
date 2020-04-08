@@ -48,7 +48,7 @@
 iDA <- function(data.use,  
                 mean.low.cutoff = 0.1, 
                 mean.high.cutoff = 8,
-                ydispersion.cutoff = 1,
+                dispersion.cutoff = 1,
                 k.param = 10,
                 prune.SNN = 1/15,
                 nn.eps = 0,
@@ -62,12 +62,10 @@ iDA <- function(data.use,
 
 
   #find variable features
-svd_time = 0 
+  svd_time = 0 
+  var.features <- VariableGenes(data.use)
+  
 
-  dispersions <- Seurat::FindVariableFeatures(data.use, selection.method = "dispersion")
-  var.features <- rownames(dispersions[dispersions$mvp.dispersion.scaled > dispersion.cutoff & dispersions$mvp.mean > mean.low.cutoff & dispersions$mvp.mean < mean.high.cutoff])                            
-                                               
-                                             
   #calculate svd for covariance matrix of variable_features
 
 start_svd = Sys.time()
