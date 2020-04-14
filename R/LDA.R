@@ -8,7 +8,7 @@
 #'
 #'@export
 
-VariableGenes <- function(data.use){
+VariableGenes <- function(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff){
   #calculate logged means and VMR
     ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
     dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
@@ -291,10 +291,6 @@ NULL
 #' @export
 #'
 
-ComputeSNN <- function(nn_ranked, prune) {
-  .Call('_Seurat_ComputeSNN', PACKAGE = 'Seurat', nn_ranked, prune)
-}
-
 
 WriteEdgeFile <- function(snn, filename, display_progress) {
   invisible(.Call('_Seurat_WriteEdgeFile', PACKAGE = 'Seurat', snn, filename, display_progress))
@@ -303,7 +299,8 @@ WriteEdgeFile <- function(snn, filename, display_progress) {
 
 
 findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
-  data.use <- as.matrix(x = data.use)
+  data.use <- as.matrix(data.use)
+  
   n.obs <- nrow(x = data.use)
 
   if (n.obs < k.param) {
@@ -315,13 +312,58 @@ findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.ep
   }
 
   if (!is.numeric(set.seed)){
-    my.knn <- nn2(
-      data = data.use,
-      k = k.param,
-      searchtype = 'standard',
-      eps = nn.eps)
-    nn.ranked <- my.knn$nn.idx
-    snn.matrix <- ComputeSNN(nn_ranked = nn.ranked, prune = prune.SNN)
+    
+    SNN_igraph = buildKNNGraph(
+      data.use, 
+      k = k.param, 
+      transposed = TRUE)
+    snn.matrix = similarity(
+      SNN_igraph, 
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    return(snn.matrix)
+  } else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    
+    SNN_igraph = buildKNNGraph(
+      data.use, 
+      k = k.param, 
+      transposed = TRUE)
+    snn.matrix = similarity(
+      SNN_igraph, 
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    
+    return(snn.matrix)
+  }
+}
+
+
+
+NearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
+  data.use <- as.matrix(data.use)
+  
+  n.obs <- nrow(x = data.use)
+  
+  if (n.obs < k.param) {
+    warning(
+      "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
+      call. = FALSE
+    )
+    k.param <- n.obs - 1
+  }
+  
+  if (!is.numeric(set.seed)){
+    snn.matrix <- buildSNNGraph(data.use, k = 10, d = 50, type = "rank", transposed = TRUE)
+    snnGraph_igraph = igraph::as_adjacency_matrix(snn.matrix, type = "both", sparse = igraph_opt("sparsematrices"))
+    
+    
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
     return(snn.matrix)
@@ -333,14 +375,19 @@ findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.ep
       searchtype = 'standard',
       eps = nn.eps)
     nn.ranked <- my.knn$nn.idx
-    snn.matrix <- ComputeSNN(nn_ranked = nn.ranked, prune = prune.SNN)
-    rownames(x = snn.matrix) <- rownames(x = data.use)
-    colnames(x = snn.matrix) <- rownames(x = data.use)
-    return(snn.matrix)
   }
+
+  
+  
+  
+  
 }
-
-
+  
+  
+  
+  
+  
+  
 #' @include seurat.R
 NULL
 #' Cluster Determination

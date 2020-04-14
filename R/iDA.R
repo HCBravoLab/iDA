@@ -37,6 +37,7 @@
 #' @import igraph
 #' @import FNN
 #' @import RANN 
+#' @import scran
 #'@return n number of dataframes for each cluster's data
 #'
 #'@export
@@ -63,8 +64,8 @@ iDA <- function(data.use,
 
   #find variable features
   svd_time = 0 
-  var.features <- VariableGenes(data.use)
-  
+  var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+ length(var.features) 
 
   #calculate svd for covariance matrix of variable_features
 
