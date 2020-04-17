@@ -230,42 +230,6 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
 }
 
 
-
-#'  Find linear discriminants which best separate clusters
-#'
-#'  Takes in a dataframe of scaled data with cluster identification and finds the embedding space with linear discriminants to optimize the ratio of between cluster variance to within cluster variance
-#'@param data a dataframe of scaled data
-#'@param betweenclust_sc_mat The between class scatter matrix (output from betweenclust_sc_mat())
-#'@param num_clusts The number of clusters
-#'
-#'@return returns the between class scatter matrix
-#'
-#'@export
-
-LDAtransform <- function(data, clustident, diagSw = FALSE, set.seed = FALSE) {
-  #split data into dataframes per cluster
-  splitclusters <- split_clusters(data = data, clusterIDcol = clustident)
-
-  #calculate within cluster scatter matrix
-  wcsm <- withinclass_scattermatrix(splitclusters = splitclusters, diag = diagSw)
-
-  #calculate between cluster scatter matrix
-  bcsm <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-
-  #decompose Sw^-1 * Sb
-  set.seed = set.seed
-  feature_embedding <- decompose(withinclust_sc_mat = wcsm, betweenclust_sc_mat = bcsm, nu = length(unique(clustident)))
-
-  #transform original data with feature_embedding
-  LDAtransformed <- as.data.frame(data %*% feature_embedding)
-
-  return(LDAtransformed)
-}
-
-
-
-#' @include seurat.R
-NULL
 #' Cluster Determination
 #'
 #' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
@@ -284,21 +248,14 @@ NULL
 #' @param nn.eps Error bound when performing nearest neighbor seach using RANN;
 #' default of 0.0 implies exact nearest neighbor search
 #'
-#' @importFrom igraph plot.igraph graph.adjlist
-#' @importFrom Matrix sparseMatrix
+#' @import igraph 
 #' @return
 #'
 #' @export
 #'
 
 
-WriteEdgeFile <- function(snn, filename, display_progress) {
-  invisible(.Call('_Seurat_WriteEdgeFile', PACKAGE = 'Seurat', snn, filename, display_progress))
-}
-
-
-
-findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
+getSNN <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
   data.use <- as.matrix(data.use)
   
   n.obs <- nrow(x = data.use)
@@ -317,7 +274,7 @@ findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.ep
       data.use, 
       k = k.param, 
       transposed = TRUE)
-    snn.matrix = similarity(
+    snn.matrix <- similarity(
       SNN_igraph, 
       method = "jaccard")
     
@@ -339,57 +296,14 @@ findNearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.ep
     snn.matrix[snn.matrix < 1/15] <- 0
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
-    
+
     return(snn.matrix)
   }
 }
 
 
 
-NearestNeighbors <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
-  data.use <- as.matrix(data.use)
-  
-  n.obs <- nrow(x = data.use)
-  
-  if (n.obs < k.param) {
-    warning(
-      "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
-      call. = FALSE
-    )
-    k.param <- n.obs - 1
-  }
-  
-  if (!is.numeric(set.seed)){
-    snn.matrix <- buildSNNGraph(data.use, k = 10, d = 50, type = "rank", transposed = TRUE)
-    snnGraph_igraph = igraph::as_adjacency_matrix(snn.matrix, type = "both", sparse = igraph_opt("sparsematrices"))
-    
-    
-    rownames(x = snn.matrix) <- rownames(x = data.use)
-    colnames(x = snn.matrix) <- rownames(x = data.use)
-    return(snn.matrix)
-  } else if (is.numeric(set.seed)){
-    set.seed(set.seed)
-    my.knn <- nn2(
-      data = data.use,
-      k = k.param,
-      searchtype = 'standard',
-      eps = nn.eps)
-    nn.ranked <- my.knn$nn.idx
-  }
 
-  
-  
-  
-  
-}
-  
-  
-  
-  
-  
-  
-#' @include seurat.R
-NULL
 #' Cluster Determination
 #'
 #' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
@@ -397,90 +311,32 @@ NULL
 #' determine clusters. For a full description of the algorithms, see Waltman and
 #' van Eck (2013) \emph{The European Physical Journal B}.
 #'
-#'@param SNN a matrix of shared nearest neighbors (output from findNearestNeighbors)
-#'@param modularity Modularity function (1 = standard; 2 = alternative)
+#'
+#'@param SNN a matrix of shared nearest neighbors (output from getSNN)
 #'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
-#'@param algorithm Algorithm for modularity optimization (1 = original Louvain
-#' algorithm; 2 = Louvain algorithm with multilevel refinement; 3 = SLM
-#' algorithm)
-#'@param n.start Number of random starts.
-#'@param n.iter Maximal number of iterations per random start.
 #'@param random.seed Seed of the random number generator.
-#'@param edge.file.name Edge file to use as input for modularity optimizer jar.
-#'@importFrom igraph plot.igraph graph.adjlist
-#'@importFrom Matrix sparseMatrix
+
+#'@importFrom NetworkToolbox louvain
 #'
 #'
 
 
-
-RunModularityClustering <- function(
-  SNN = matrix(),
-  modularity = 1,
-  resolution = 0.8,
-  algorithm = 1,
-  n.start = 100,
-  n.iter = 10,
-  random.seed = 0,
-  print.output = TRUE,
-  edge.file.name = NULL
-) {
-  seurat.dir <- system.file(package = "Seurat")
-  ModularityJarFile <- paste0(seurat.dir, "/java/ModularityOptimizer.jar")
-
-
-  seurat.dir.base <- strsplit(x = seurat.dir, split = "/")[[1]]
-  seurat.dir <- paste0(
-    seurat.dir.base[0:(length(x = seurat.dir.base) - 1)],
-    collapse = "/"
-  )
-  seurat.dir <- paste0(seurat.dir, "/")
-  unique_ID <- sample(x = 10000:99999, size = 1)
-  temp.file.location <- "/Users/taa/Downloads/"
-
-  if(is.null(edge.file.name)) {
-    edge_file <- paste0(temp.file.location, "_edge_", unique_ID, ".txt")
-    #while (file.exists(edge_file)) {
-    # unique_ID <- sample(x = 10000:99999, size = 1)
-    #edge_file <- paste0(temp.file.location, "_edge_", unique_ID, ".txt")
-    #}
-    WriteEdgeFile(snn = SNN,
-                  filename = edge_file,
-                  display_progress = print.output)
-  } else {
-    if(!file.exists(edge.file.name)) {
-      stop("Edge file provided doesn't exist")
-    }
-    edge_file <- edge.file.name
+getLouvain <- function(SNN, resolution = 1, random.seed = 0){
+  if (!is.numeric(set.seed)){
+    louvain_clusts <- louvain(SNN, gamma = resolution)  
+    idents <- louvain_clusts$community
+    return(idents)
+  }  else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    
+    louvain_clusts <- louvain(SNN, gamma = resolution)  
+    idents <- louvain_clusts$community
+    return(idents)
   }
+  
+}  
 
-  output_file <- paste0(temp.file.location, "_output_", unique_ID, ".txt")
-  file.create(output_file)
 
-  if (print.output) {
-    print.output <- 1
-  } else {
-    print.output <- 0
-  }
 
-  command <- paste(
-    "java -jar",
-    shQuote(string = ModularityJarFile),
-    shQuote(string = edge_file),
-    shQuote(string = output_file),
-    modularity,
-    resolution,
-    algorithm,
-    n.start,
-    n.iter,
-    random.seed,
-    print.output
-  )
-  system(command, wait = TRUE)
-  ident.use <- read.table(file = output_file, header = FALSE, sep = "\t")[, 1]
-  idents <- data.frame(cells = rownames(SNN), ident = ident.use)
 
-  file.remove(output_file)
-  file.remove(edge_file)
-  return(idents)
-}
+

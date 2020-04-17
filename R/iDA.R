@@ -6,7 +6,6 @@
 #'@param mean.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
 #'@param mean.high.cutoff Top cutoff on x-axis for identifying variable genes
 #'@param dispersion.cutoff Bottom cutoff on y-axis for identifying variable genes
-#' @param display.progress show progress bar for calculations
 #' @param dims.use A vector of the dimensions to use in construction of the SNN
 #' graph (e.g. To use the first 10 PCs, pass 1:10)
 #' @param k.param Defines k for the k-nearest neighbor algorithm
@@ -17,7 +16,6 @@
 #' prune everything).
 #' @param nn.eps Error bound when performing nearest neighbor seach using RANN;
 #' default of 0.0 implies exact nearest neighbor search
-#' @param n.iter The number of iterations for the reclustering and embedding
 #' @param diag Diagonalize the within class scatter matrix (assume the features are independent
 #' within each cluster)
 #' @param decompose.fxn Which method to use for computing eigenvectors. Available methods are:
@@ -43,9 +41,6 @@
 #'@export
 
 
-
-
-
 iDA <- function(data.use,  
                 mean.low.cutoff = 0.1, 
                 mean.high.cutoff = 8,
@@ -54,7 +49,6 @@ iDA <- function(data.use,
                 prune.SNN = 1/15,
                 nn.eps = 0,
                 reduction.type = "LDA",
-                display.progress = TRUE,
                 dims.use = 10,
                 diag = FALSE, 
                 set.seed = FALSE,
@@ -65,7 +59,6 @@ iDA <- function(data.use,
   #find variable features
   svd_time = 0 
   var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
- length(var.features) 
 
   #calculate svd for covariance matrix of variable_features
 
@@ -77,96 +70,113 @@ start_svd = Sys.time()
       set.seed(set.seed)
       svd <- svdr(as.matrix(var_data), k = dims.use)
     }
-end_svd = Sys.time()
-svd_time = svd_time + (end_svd - start_svd)
+end_svd <- Sys.time()
+svd_time <- svd_time + (end_svd - start_svd)
   #transform data
     transformed <- svd$v
     rownames(transformed) <- colnames(var_data)
 
 
     #calculate SNN matrix for top PC's
-louvain_time = 0
-start_louvain = Sys.time()
+louvain_time <- 0
+start_louvain <- Sys.time()
 
-      snn <- findNearestNeighbors(data.use = transformed, set.seed = set.seed)
-
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
+      
     #cluster
-      clusters = c(rep(1, dim(snn)[1]))
-      clusters <- cbind(clusters, RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE))
-end_louvain = Sys.time()
-      rownames(clusters) <- clusters$cells
-      clusters = clusters[,-2]
+      louvainClusters = getLouvain(snn, resolution = resolution, random.seed = set.seed)
+      
+      clusters <- c(rep(1, dim(snn)[1]))
+      clusters <- cbind(clusters, louvainClusters)
+end_louvain <- Sys.time()
+
+      rownames(clusters) <- rownames(transformed)
+
 
 louvain_time = louvain_time + (end_louvain - start_louvain)
 
       i = 1
     #start iterations
-    while(sum(clusters[dim(clusters)[2]-1] == clusters[dim(clusters)[2]])/dim(clusters)[1] < .98) {
-      concordance = sum(clusters[dim(clusters)[2]-1] == clusters[dim(clusters)[2]])/dim(clusters)[1]
+    while(sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1] < .98) {
+      concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
       message(paste0("iteration ", i))
       message(paste0("concordance: ", concordance))
 
       #merge data with cluster
-        currentcluster = as.data.frame(clusters[,i + 1])
-        rownames(currentcluster) = rownames(clusters)
+        currentcluster <- as.data.frame(clusters[,i + 1])
+        rownames(currentcluster) <- rownames(clusters)
         merged <- merge(currentcluster, t(var_data), by = 0)
 
       #split by cluster
         splitclusters <- split_clusters(merged, merged[,2])
 
-      if (reduction.type == "LDA") {
-
+        
         #calculate within cluster scatter matrix
-          Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
-
-        #calculate between cluster scatter matrix
-          Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-
+                   Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
+         
+                 #calculate between cluster scatter matrix
+                   Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
+         
         #Sw-1 %*% Sb
-          
-start_svd = Sys.time()
-          eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
-end_svd = Sys.time()
-
-svd_time = svd_time + (end_svd - start_svd)
-
-      } else if (reduction.type == "QDA") {
-        Sw = withinclass_scattermatrix_QDA(splitclusters = splitclusters, diag = diag)
-        Sb = betweenclass_scatter_matrix(splitclusters = splitclusters)
-        invSwSb = c()
-        k=1
-        for (i in Sw){
-          invSwSb[[k]] = decomposesvd(i,Sb, nu = 1)
-          k = k + 1
-        }
-        eigenvecs = as.matrix(invSwSb, ncol = length(Sw))
-      }
+         start_svd = Sys.time()
+                   eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
+         end_svd = Sys.time()
+         
+         svd_time = svd_time + (end_svd - start_svd)
+        
+        
+        
+        
+#       if (reduction.type == "LDA") {
+#         #calculate within cluster scatter matrix
+#           Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
+# 
+#         #calculate between cluster scatter matrix
+#           Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
+# 
+#         #Sw-1 %*% Sb
+#           
+# start_svd = Sys.time()
+#           eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
+# end_svd = Sys.time()
+# 
+# svd_time = svd_time + (end_svd - start_svd)
+        
+      # } else if (reduction.type == "QDA") {
+      #   Sw = withinclass_scattermatrix_QDA(splitclusters = splitclusters, diag = diag)
+      #   Sb = betweenclass_scatter_matrix(splitclusters = splitclusters)
+      #   invSwSb = c()
+      #   k=1
+      #   for (i in Sw){
+      #     invSwSb[[k]] = decomposesvd(i,Sb, nu = 1)
+      #     k = k + 1
+      #   }
+      #   eigenvecs = as.matrix(invSwSb, ncol = length(Sw))
+      # }
 
       #transform data
-        transformed <- t(var_data) %*% eigenvecs
+        eigenvectransformed <- t(var_data) %*% eigenvecs
 
-      #calculate SNN matrix for top PC's
+      #calculate SNN matrix for top LDs
 start_louvain = Sys.time()
-        snn <- findNearestNeighbors(data.use = transformed, set.seed = set.seed)
+        snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
 
       #cluster
-        if (!is.numeric(set.seed)){
-        currentclust = RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE)
-        } else if (is.numeric(set.seed)){
-          currentclust = RunModularityClustering(SNN = snn, resolution = resolution, print.output = FALSE, random.seed = set.seed)
-        }
-        clusters <- cbind(clusters, currentclust$ident)
+        currentclust <- getLouvain(snn_transformed, resolution = resolution, random.seed = set.seed)
+        clusters <- cbind(clusters, currentclust)
         i = i + 1
+
 end_louvain = Sys.time()
 
 louvain_time = louvain_time + (end_louvain - start_louvain)
     }
-  concordance = sum(clusters[dim(clusters)[2]-1] == clusters[dim(clusters)[2]])/dim(clusters)[1]
+  concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
   geneweights = eigenvecs
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[dim(clusters)[2]], transformed, geneweights, louvain_time, svd_time))
+  return(list(clusters[,dim(clusters)[2]], transformed, geneweights, louvain_time, svd_time))
 }
+
 
 
 
