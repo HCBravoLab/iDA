@@ -24,13 +24,6 @@
 #' \item{irlba:}{use irlba() function: Fast and memory efficient methods for truncated singular value decomposition
 #'  and principal components analysis of large sparse and dense matrices.}
 #' }
-#' @param resolution The resolution parameter to use for Louvain modularity clustering
-#' @param reduction.type Type of reduction to use in the iterative step. Available methods are:
-#' \itemize{
-#' \item{LDA:}{ use linear discriminant analysis to find discriminants between classes (assumes equal covariance of clusters) [default]}
-#' \item{QDA:}{use quadratic discriminant analysis to find discriminants between classes (allows for different covariances between clusters)
-#'
-#'
 #' @import irlba 
 #' @import igraph
 #' @import FNN
@@ -48,11 +41,10 @@ iDA <- function(data.use,
                 k.param = 10,
                 prune.SNN = 1/15,
                 nn.eps = 0,
-                reduction.type = "LDA",
                 dims.use = 10,
                 diag = FALSE, 
-                set.seed = FALSE,
-                resolution = 1.0
+                set.seed = FALSE
+                #resolution = 1.0
                 ){
 
 
@@ -82,21 +74,29 @@ louvain_time <- 0
 start_louvain <- Sys.time()
 
       snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
-      
+  
     #cluster
-      louvainClusters = getLouvain(snn, resolution = resolution, random.seed = set.seed)
+      walktrapClusters = igraph::cluster_walktrap(snn)
+
       
-      clusters <- c(rep(1, dim(snn)[1]))
-      clusters <- cbind(clusters, louvainClusters)
+    #pick highet modularity 
+      modularity = c()
+      for (i in 1:15){
+        modularity = c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
+        
+      }
+      
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      
 end_louvain <- Sys.time()
+louvain_time = louvain_time + (end_louvain - start_louvain)
 
       rownames(clusters) <- rownames(transformed)
 
 
-louvain_time = louvain_time + (end_louvain - start_louvain)
-
-      i = 1
     #start iterations
+    i = 1
     while(sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1] < .98) {
       concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
       message(paste0("iteration ", i))
@@ -104,29 +104,26 @@ louvain_time = louvain_time + (end_louvain - start_louvain)
 
       #merge data with cluster
         currentcluster <- as.data.frame(clusters[,i + 1])
-        rownames(currentcluster) <- rownames(clusters)
+        #rownames(currentcluster) <- rownames(clusters)
         merged <- merge(currentcluster, t(var_data), by = 0)
 
       #split by cluster
         splitclusters <- split_clusters(merged, merged[,2])
 
-        
-        #calculate within cluster scatter matrix
-                   Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
+      #calculate within cluster scatter matrix
+        Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
          
-                 #calculate between cluster scatter matrix
-                   Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
+      #calculate between cluster scatter matrix
+       Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
          
-        #Sw-1 %*% Sb
-         start_svd = Sys.time()
-                   eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
-         end_svd = Sys.time()
+      #Sw-1 %*% Sb
+        start_svd = Sys.time()
+          eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
+        end_svd = Sys.time()
          
-         svd_time = svd_time + (end_svd - start_svd)
+        svd_time = svd_time + (end_svd - start_svd)
         
-        
-        
-        
+      
 #       if (reduction.type == "LDA") {
 #         #calculate within cluster scatter matrix
 #           Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
@@ -159,22 +156,33 @@ louvain_time = louvain_time + (end_louvain - start_louvain)
 
       #calculate SNN matrix for top LDs
 start_louvain = Sys.time()
+
         snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
 
       #cluster
-        currentclust <- getLouvain(snn_transformed, resolution = resolution, random.seed = set.seed)
-        clusters <- cbind(clusters, currentclust)
-        i = i + 1
+        walktrapClusters = igraph::cluster_walktrap(snn_transformed)
+
+
+      #pick highest modularity 
+        modularity = c()
+        for (j in 1:15){
+          modularity = c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
+        }
+
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+        clusters <- cbind(clusters, maxmodclust)
+        
 
 end_louvain = Sys.time()
 
 louvain_time = louvain_time + (end_louvain - start_louvain)
+i = i + 1
     }
   concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
   geneweights = eigenvecs
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], transformed, geneweights, louvain_time, svd_time))
+  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, louvain_time, svd_time))
 }
 
 

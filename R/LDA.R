@@ -270,7 +270,7 @@ getSNN <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.see
 
   if (!is.numeric(set.seed)){
     
-    SNN_igraph = buildKNNGraph(
+    SNN_igraph = scran::buildKNNGraph(
       data.use, 
       k = k.param, 
       transposed = TRUE)
@@ -281,11 +281,14 @@ getSNN <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.see
     snn.matrix[snn.matrix < 1/15] <- 0
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
-    return(snn.matrix)
+    
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
+    
   } else if (is.numeric(set.seed)){
     set.seed(set.seed)
     
-    SNN_igraph = buildKNNGraph(
+    SNN_igraph = scran::buildKNNGraph(
       data.use, 
       k = k.param, 
       transposed = TRUE)
@@ -297,7 +300,8 @@ getSNN <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.see
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
 
-    return(snn.matrix)
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
   }
 }
 
