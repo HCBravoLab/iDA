@@ -56,22 +56,14 @@ split_clusters <- function(data, clusterIDcol) {
   split(data , f = as.factor(clusterIDcol))
 }
 
-
-
-
-
-#'  Compute each cluster's within class scatter matrix
+#' Compute each cluster's within class scatter matrix
 #'
-#'  Takes in the output from split_clusters() and computes the within class scatter matrix
-#'@param splitclusters A list of dataframes with scaled data from each cluster (output from split_clusters())
-#'@param diag if off diagonal entries in within class scatter matrix should be zeroed
+#' Takes in the output from split_clusters() and computes the within class scatter matrix
+#' 
+#' @param splitclusters A list of dataframes with scaled data from each cluster (output from split_clusters())
+#' @param diag if off diagonal entries in within class scatter matrix should be zeroed
 #'
-#'@return returns the within class scatter matrix
-#'
-#'@export
-
-
-
+#' @return returns the within class scatter matrix
 withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
   #calculate means vector for each cluster
   clustermeans <- c()
@@ -110,7 +102,14 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
 
 }
 
-
+#' Compute each cluster's within class scatter matrix (for QDA)
+#'
+#' Takes in the output from split_clusters() and computes the within class scatter matrix
+#' 
+#' @param splitclusters A list of dataframes with scaled data from each cluster (output from split_clusters())
+#' @param diag if off diagonal entries in within class scatter matrix should be zeroed
+#'
+#' @return returns the within class scatter matrix
 withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
   #calculate means vector for each cluster
   clustermeans <- c()
@@ -146,20 +145,13 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
 
 }
 
-
-
-
-
 #'  Compute the between class scatter matrix
 #'
 #'  Takes in a list of dataframes with scaled data (output from split_clusters) and returns the between class scatter matrix
-#'@param splitclusters A list of dataframes (from the output of split_clusters) with scaled data from each cluster
+#' @param splitclusters A list of dataframes (from the output of split_clusters) with scaled data from each cluster
 #'
-#'@return returns the between class scatter matrix
+#' @return returns the between class scatter matrix
 #'
-#'@export
-
-
 betweenclass_scatter_matrix <- function(splitclusters){
   #calculate means vector for each cluster
   clustermeans <- c()
@@ -193,13 +185,15 @@ betweenclass_scatter_matrix <- function(splitclusters){
 }
 
 
-
-decomposesvd <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set.seed = FALSE) {
-  if(!is.numeric(set.seed)){
+## TODO: This is not using set.seed properly
+decomposesvd <- function(withinclust_sc_mat, 
+                         betweenclust_sc_mat, 
+                         nu = 10, set.seed = FALSE) {
+  if (!is.numeric(set.seed)) {
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
     return(top_eigenvectors)
-  } else if(is.numeric(set.seed)){
+  } else if(is.numeric(set.seed)) {
     set.seed = set.seed
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
@@ -207,7 +201,7 @@ decomposesvd <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set.s
   }
 }
 
-
+## TODO: This is not using set.seed properly
 decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set.seed = FALSE) {
   if(!is.numeric(set.seed)){
     svd <- irlba(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
@@ -221,33 +215,30 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
   }
 }
 
-
 #' Cluster Determination
 #'
-#' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
-#' optimization based clustering algorithm. First calculate k-nearest neighbors
-#' and construct the SNN graph. Then optimize the modularity function to
-#' determine clusters. For a full description of the algorithms, see Waltman and
-#' van Eck (2013) \emph{The European Physical Journal B}.
+#' Calculate k-nearest neighbors and construct a shared nearest neighbor (SNN) graph. 
 #'
-#' @param data.use Matrix with scaled data to find nearest neighbors
-#' @param k.param Defines k for the k-nearest neighbor algorithm
-#' @param prune.SNN Sets the cutoff for acceptable Jaccard index when
+#' @param data.use (matrix) Matrix with scaled data to find nearest neighbors
+#' @param k.param (numeric) Defines k for the k-nearest neighbor algorithm
+#' @param prune.SNN (numeric) Sets the cutoff for acceptable Jaccard index when
 #' computing the neighborhood overlap for the SNN construction. Any edges with
 #' values less than or equal to this will be set to 0 and removed from the SNN
 #' graph. Essentially sets the strigency of pruning (0 --- no pruning, 1 ---
 #' prune everything).
-#' @param nn.eps Error bound when performing nearest neighbor seach using RANN;
-#' default of 0.0 implies exact nearest neighbor search
+#' @param nn.eps (numeric) Error bound when performing nearest neighbor seach using RANN;
+#' default of 0.0 implies exact nearest neighbor search 
+#' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph
 #'
 #' @import igraph 
-#' @return
-#'
-#' @export
-#'
-
-
-getSNN <- function(data.use, k.param = 10, prune.SNN = 1/15, nn.eps = 0, set.seed = FALSE) {
+#' @import scran
+#' 
+#' @return The SNN graph (igraph object) 
+getSNN <- function(data.use, 
+                   k.param = 10, 
+                   prune.SNN = 1/15, 
+                   nn.eps = 0, 
+                   set.seed = FALSE) {
   data.use <- as.matrix(data.use)
   
   n.obs <- nrow(x = data.use)
