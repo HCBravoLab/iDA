@@ -45,29 +45,15 @@ VariableGenes <- function(data.use,
   return(var.features)
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-#'  Split dataset by cluster
+#' Split dataset by cluster label
 #'
-#'  Takes in dataframe to be split and an cluster identifier column and outputs n number of dataframes (n = number of clusters)
-#'@param data A dataframe to be split
-#'@param clusterIDcol The column  in data with cluster identifiers
+#' Takes a data.frame to and the name of the column cluster identifier column and outputs n dataframes (n = number of clusters)
+#' @param data (data.frame) A dataframe to be split
+#' @param clusterIDcol (character) The name of the column in data with cluster identifiers
 #'
-#'@return n number of dataframes for each cluster's data
-#'
-#'@export
+#' @return n number of dataframes for each cluster's data
 split_clusters <- function(data, clusterIDcol) {
-  out <- split(data , f = as.factor(clusterIDcol))
+  split(data , f = as.factor(clusterIDcol))
 }
 
 

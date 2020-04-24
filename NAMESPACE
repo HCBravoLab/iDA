@@ -3,7 +3,6 @@
 export(betweenclass_scatter_matrix)
 export(getSNN)
 export(iDA)
-export(split_clusters)
 export(withinclass_scattermatrix_LDA)
 import(FNN)
 import(RANN)
