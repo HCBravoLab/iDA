@@ -61,7 +61,7 @@ svd_time <- svd_time + (end_svd - start_svd)
 louvain_time <- 0
 start_louvain <- Sys.time()
 
-      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
   
     #cluster
       walktrapClusters = igraph::cluster_walktrap(snn)
@@ -145,7 +145,7 @@ louvain_time = louvain_time + (end_louvain - start_louvain)
       #calculate SNN matrix for top LDs
 start_louvain = Sys.time()
 
-        snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
+        snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
 
       #cluster
         walktrapClusters = igraph::cluster_walktrap(snn_transformed)

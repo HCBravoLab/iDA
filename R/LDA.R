@@ -8,6 +8,8 @@
 #' @param mean.low.cutoff (numeric) rows returned will have average higher than this cutoff
 #' @param mean.high.cutoff (numeric) rows returned will have average lower than this cutoff
 #' 
+#' @importFrom stats sd var
+#' 
 #' @return (character) a list of row names with high dispersion rows
 #'
 VariableGenes <- function(data.use, 
