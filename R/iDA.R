@@ -2,10 +2,11 @@
 #'
 #'  Takes scaled data and iterates between clustering using the Louvain community detection method and embedding in LDA space, then recluster in
 #'  the LDA transformed data space.
-#'@param data.use A dataframe of scaled data to find embedding for. (sample x feature)
-#'@param mean.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
-#'@param mean.high.cutoff Top cutoff on x-axis for identifying variable genes
-#'@param dispersion.cutoff Bottom cutoff on y-axis for identifying variable genes
+#'  
+#' @param data.use A dataframe of scaled data to find embedding for. (sample x feature)
+#' @param mean.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
+#' @param mean.high.cutoff Top cutoff on x-axis for identifying variable genes
+#' @param dispersion.cutoff Bottom cutoff on y-axis for identifying variable genes
 #' @param dims.use A vector of the dimensions to use in construction of the SNN
 #' graph (e.g. To use the first 10 PCs, pass 1:10)
 #' @param k.param Defines k for the k-nearest neighbor algorithm

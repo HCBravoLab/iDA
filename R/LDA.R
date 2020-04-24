@@ -1,14 +1,20 @@
-
-#'  Find Variable Genes 
+#' Find Variable Genes 
 #'
-#'  Takes in dataframe to be split and an cluster identifier column and outputs n number of dataframes (n = number of clusters)
-#'@param data.use A scaled dataframe to find the variable features. features are rows, samples are columns.
+#' Identify rows in a data frame with high sclaed dispersion. This rule was
+#' taken from the Seurat package.
+#' 
+#' @param data.use (data.frame) features are rows, samples are columns. Rows must be named.
+#' @param dispersion.cutoff (numeric) rows returned will have scaled dispersion higher provided cutoff
+#' @param mean.low.cutoff (numeric) rows returned will have average higher than this cutoff
+#' @param mean.high.cutoff (numeric) rows returned will have average lower than this cutoff
+#' 
+#' @return (character) a list of row names with high dispersion rows
 #'
-#'@return variable genes
-#'
-#'@export
-
-VariableGenes <- function(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff){
+VariableGenes <- function(data.use, 
+                          dispersion.cutoff, 
+                          mean.low.cutoff, 
+                          mean.high.cutoff) 
+  {
   #calculate logged means and VMR
     ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
     dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
