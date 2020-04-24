@@ -11,7 +11,7 @@
 #' @importFrom stats sd var
 #' 
 #' @return (character) a list of row names with high dispersion rows
-#'
+#' @export
 VariableGenes <- function(data.use, 
                           dispersion.cutoff, 
                           mean.low.cutoff, 

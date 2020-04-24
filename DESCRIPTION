@@ -7,8 +7,18 @@ Maintainer: Theresa Alexander <reesyxan@umd.edu>
 Imports: scran, igraph, irlba, FNN, RANN
 Description: This package takes in a scaled data matrix and outputs the optimal latent space embedding using an iterative process of computing the singular value decomposition, clustering in the embeddging space, using linear discriminant analysis to find features which define cluster separation, and reclustering in the embedding space. 
 License: MIT + file LICENSE
+VignetteBuilder: knitr
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.0
 Suggests: 
-    testthat, datasets
+    testthat, 
+    datasets, 
+    BiocStyle, 
+    knitr, 
+    rmarkdown,
+    scPipe,
+    scater,
+    ggplot2,
+    Rtsne
+
