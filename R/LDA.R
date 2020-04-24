@@ -226,8 +226,6 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
 #' values less than or equal to this will be set to 0 and removed from the SNN
 #' graph. Essentially sets the strigency of pruning (0 --- no pruning, 1 ---
 #' prune everything).
-#' @param nn.eps (numeric) Error bound when performing nearest neighbor seach using RANN;
-#' default of 0.0 implies exact nearest neighbor search 
 #' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph
 #'
 #' @import igraph 
@@ -237,7 +235,6 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
 getSNN <- function(data.use, 
                    k.param = 10, 
                    prune.SNN = 1/15, 
-                   nn.eps = 0, 
                    set.seed = FALSE) {
   data.use <- as.matrix(data.use)
   
@@ -251,6 +248,7 @@ getSNN <- function(data.use,
     k.param <- n.obs - 1
   }
 
+  ## TODO: refactor this to avoid code duplication
   if (!is.numeric(set.seed)){
     
     SNN_igraph = scran::buildKNNGraph(
@@ -291,37 +289,33 @@ getSNN <- function(data.use,
 
 
 
-#' Cluster Determination
-#'
-#' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
-#' optimization based clustering algorithm. Optimize the modularity function to
-#' determine clusters. For a full description of the algorithms, see Waltman and
-#' van Eck (2013) \emph{The European Physical Journal B}.
-#'
-#'
-#'@param SNN a matrix of shared nearest neighbors (output from getSNN)
-#'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
-#'@param random.seed Seed of the random number generator.
-
-#'@importFrom NetworkToolbox louvain
-#'
-#'
-
-
-getLouvain <- function(SNN, resolution = 1, random.seed = 0){
-  if (!is.numeric(set.seed)){
-    louvain_clusts <- louvain(SNN, gamma = resolution)  
-    idents <- louvain_clusts$community
-    return(idents)
-  }  else if (is.numeric(set.seed)){
-    set.seed(set.seed)
-    
-    louvain_clusts <- louvain(SNN, gamma = resolution)  
-    idents <- louvain_clusts$community
-    return(idents)
-  }
-  
-}  
+# #' Cluster Determination
+# #'
+# #' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
+# #' optimization based clustering algorithm. Optimize the modularity function to
+# #' determine clusters. For a full description of the algorithms, see Waltman and
+# #' van Eck (2013) \emph{The European Physical Journal B}.
+# #'
+# #'
+# #'@param SNN a matrix of shared nearest neighbors (output from getSNN)
+# #'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
+# #'@param random.seed Seed of the random number generator.
+# 
+# #'@importFrom NetworkToolbox louvain
+# getLouvain <- function(SNN, resolution = 1, random.seed = 0){
+#   if (!is.numeric(set.seed)){
+#     louvain_clusts <- louvain(SNN, gamma = resolution)  
+#     idents <- louvain_clusts$community
+#     return(idents)
+#   }  else if (is.numeric(set.seed)){
+#     set.seed(set.seed)
+#     
+#     louvain_clusts <- louvain(SNN, gamma = resolution)  
+#     idents <- louvain_clusts$community
+#     return(idents)
+#   }
+#   
+# }  
 
 
 
