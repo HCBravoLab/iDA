@@ -66,7 +66,7 @@ setMethod("iDA", "SingleCellExperiment",
 setMethod("iDA", "Seurat",
           function(object, assay, ...) {
             
-            if (!('scale.data' %in% slotNames(object[[assay]]))){
+           if (length(object[[assay]]@scale.data) == 0){
               object <- NormalizeData(object, normalization.method = "LogNormalize", scale.factor = 10000)
               all.genes <- rownames(object)
               object <- ScaleData(object)
