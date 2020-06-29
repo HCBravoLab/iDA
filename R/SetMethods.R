@@ -65,5 +65,5 @@ setMethod("iDA", "Seurat",
         
             return(object)
           })
-class(pbmc)
+
 
