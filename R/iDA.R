@@ -2,49 +2,37 @@
 #'
 #'  Takes scaled data and iterates between clustering using the Louvain community detection method and embedding in LDA space, then recluster in
 #'  the LDA transformed data space.
-#'@param data.use A dataframe of scaled data to find embedding for. (sample x feature)
-#'@param mean.low.cutoff  Bottom cutoff on x-axis for identifying variable genes
-#'@param mean.high.cutoff Top cutoff on x-axis for identifying variable genes
-#'@param dispersion.cutoff Bottom cutoff on y-axis for identifying variable genes
-#' @param dims.use A vector of the dimensions to use in construction of the SNN
-#' graph (e.g. To use the first 10 PCs, pass 1:10)
-#' @param k.param Defines k for the k-nearest neighbor algorithm
-#' @param prune.SNN Sets the cutoff for acceptable Jaccard index when
+#'  
+#' @param data.use (data.frame) A dataframe of scaled data to find embedding for. (sample x feature)
+#' @param mean.low.cutoff  (numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]
+#' @param mean.high.cutoff (numeric) Top cutoff on mean for identifying variable genes (passed to [`VariableGenes`])
+#' @param dispersion.cutoff (numeric) Bottom cutoff on dispersion for identifying variable genes (passed to [`VariableGenes`])
+#' @param dims.use (numeric) A vector of the dimensions to use in construction of the SNN
+#' graph (e.g. To use the first 10 PCs, pass 1:10) (passed to [`getSNN`])
+#' @param k.param (numeric) Defines k for the k-nearest neighbor algorithm (passed to [`getSNN`])
+#' @param prune.SNN (numeric) Sets the cutoff for acceptable Jaccard index when
 #' computing the neighborhood overlap for the SNN construction. Any edges with
 #' values less than or equal to this will be set to 0 and removed from the SNN
 #' graph. Essentially sets the strigency of pruning (0 --- no pruning, 1 ---
-#' prune everything).
-#' @param nn.eps Error bound when performing nearest neighbor seach using RANN;
-#' default of 0.0 implies exact nearest neighbor search
+#' prune everything). Passed to [`getSNN`]
 #' @param diag Diagonalize the within class scatter matrix (assume the features are independent
 #' within each cluster)
-#' @param decompose.fxn Which method to use for computing eigenvectors. Available methods are:
-#' \itemize{
-#' \item{svd:}{ use svd() function to find singular value decomposition [default]}
-#' \item{irlba:}{use irlba() function: Fast and memory efficient methods for truncated singular value decomposition
-#'  and principal components analysis of large sparse and dense matrices.}
-#' }
+#' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph. (passed to [`getSNN`])
+#'
 #' @import irlba 
 #' @import igraph
-#' @import FNN
-#' @import RANN 
-#' @import scran
-#'@return n number of dataframes for each cluster's data
+#' @return n number of dataframes for each cluster's data
 #'
 #'@export
-
-
 iDA <- function(data.use,  
                 mean.low.cutoff = 0.1, 
                 mean.high.cutoff = 8,
                 dispersion.cutoff = 1,
                 k.param = 10,
                 prune.SNN = 1/15,
-                nn.eps = 0,
                 dims.use = 10,
                 diag = FALSE, 
                 set.seed = FALSE
-                #resolution = 1.0
                 ){
 
 
@@ -73,7 +61,7 @@ svd_time <- svd_time + (end_svd - start_svd)
 louvain_time <- 0
 start_louvain <- Sys.time()
 
-      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
   
     #cluster
       walktrapClusters = igraph::cluster_walktrap(snn)
@@ -157,7 +145,7 @@ louvain_time = louvain_time + (end_louvain - start_louvain)
       #calculate SNN matrix for top LDs
 start_louvain = Sys.time()
 
-        snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN, nn.eps = 0)
+        snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
 
       #cluster
         walktrapClusters = igraph::cluster_walktrap(snn_transformed)

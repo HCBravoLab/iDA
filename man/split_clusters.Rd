@@ -2,18 +2,18 @@
 % Please edit documentation in R/LDA.R
 \name{split_clusters}
 \alias{split_clusters}
-\title{Split dataset by cluster}
+\title{Split dataset by cluster label}
 \usage{
 split_clusters(data, clusterIDcol)
 }
 \arguments{
-\item{data}{A dataframe to be split}
+\item{data}{(data.frame) A dataframe to be split}
 
-\item{clusterIDcol}{The column  in data with cluster identifiers}
+\item{clusterIDcol}{(character) The name of the column in data with cluster identifiers}
 }
 \value{
 n number of dataframes for each cluster's data
 }
 \description{
-Takes in dataframe to be split and an cluster identifier column and outputs n number of dataframes (n = number of clusters)
+Takes a data.frame to and the name of the column cluster identifier column and outputs n dataframes (n = number of clusters)
 }

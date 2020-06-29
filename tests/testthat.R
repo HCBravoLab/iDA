@@ -2,4 +2,4 @@ library(testthat)
 library(iDA)
 
 
-test_check("clustEmbed")
+test_check("iDA")
