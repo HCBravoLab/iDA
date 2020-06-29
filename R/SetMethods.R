@@ -56,6 +56,7 @@ setMethod("iDA", "SingleCellExperiment",
 #' Method for Seurat object to input data to iDA 
 #' 
 #' @param object The single cell experiment object to run iDA on
+#' @param assay The assay to take counts from
 #' @param ... Additonal arguments passed to object constructors
 #' @import Seurat Seurat
 #' @return Seurat object with iDA cell weights and gene weights stored in object[["iDA"]] and cluster assignemts stored in rowLabels
