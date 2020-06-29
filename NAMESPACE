@@ -2,8 +2,12 @@
 
 export(VariableGenes)
 export(iDA)
+export(iDA_core)
+exportMethods(iDA)
+import(Seurat)
 import(igraph)
 import(irlba)
 import(scran)
+importFrom(SingleCellExperiment,SingleCellExperiment)
 importFrom(stats,sd)
 importFrom(stats,var)

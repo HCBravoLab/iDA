@@ -24,7 +24,9 @@
 #' @return n number of dataframes for each cluster's data
 #'
 #'@export
-iDA <- function(data.use,  
+#'
+
+iDA_core <- function(data.use,  
                 mean.low.cutoff = 0.1, 
                 mean.high.cutoff = 8,
                 dispersion.cutoff = 1,

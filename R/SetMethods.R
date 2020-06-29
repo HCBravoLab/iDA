@@ -10,6 +10,24 @@
 setGeneric("iDA", signature=c("object"), 
 function(object, ...) standardGeneric("iDA"))
 
+#' Set method for matrix to input data to iDA 
+#' 
+#' @param object The object to run iDA on
+#' @param ... Additonal arguments passed to object constructors
+#' @return iDA output with clustering, gene weights, and cell weights
+#' @export
+#' 
+#' 
+
+setMethod("iDA", "matrix",
+          function(object, ...) {
+            
+            iDAoutput <- iDA_core(object)
+            return(iDAoutput)
+            
+          })
+
+
 
 #' Method for SingleCellExperiment object to input data to iDA 
 #' 
@@ -39,7 +57,7 @@ setMethod("iDA", "SingleCellExperiment",
 #' 
 #' @param object The single cell experiment object to run iDA on
 #' @param ... Additonal arguments passed to object constructors
-#' @importClassesFrom Seurat Seurat
+#' @import Seurat Seurat
 #' @return Seurat object with iDA cell weights and gene weights stored in object[["iDA"]] and cluster assignemts stored in rowLabels
 #' @export
 #' 
