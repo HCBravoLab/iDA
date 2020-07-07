@@ -78,9 +78,13 @@ setMethod("iDA", "Seurat",
             
             
             iDA_seurat <- iDA(counts, scaled = TRUE, ...)
-            
-            object[["iDA"]] <- CreateDimReducObject(embeddings = iDA_seurat[2], key = "LD", loadings = iDA_seurat[3], assay = DefaultAssay(object))
-            object@meta.data[["iDA_clust"]] <- iDA_seurat[1]
+
+            object[["iDA"]] <- CreateDimReducObject(embeddings = iDA_seurat[[2]], 
+                                                    key = "LD", 
+                                                    loadings = iDA_seurat[[3]], 
+                                                    assay = assay)
+  
+            object@meta.data[["iDA_clust"]] <- iDA_seurat[[1]]
         
             return(object)
           })
