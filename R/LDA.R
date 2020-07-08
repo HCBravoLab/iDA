@@ -16,34 +16,34 @@ VariableGenes <- function(data.use,
                           dispersion.cutoff, 
                           mean.low.cutoff, 
                           mean.high.cutoff) 
-  {
+{
   #calculate logged means and VMR
-    ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
-    dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
-
-    names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
-    dispersions[is.na(x = dispersions)] <- 0
-    ExpMeans[is.na(x = ExpMeans)] <- 0
-
+  ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
+  dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
+  
+  names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
+  dispersions[is.na(x = dispersions)] <- 0
+  ExpMeans[is.na(x = ExpMeans)] <- 0
+  
   #create bins to scale mean and dispersions
-    num.bin <- 20
-    data.x.bin <- cut(x = ExpMeans, breaks = num.bin)
-
-    names(x = data.x.bin) <- names(x = ExpMeans)
-
-    mean.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = mean)
-    sd.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = sd)
+  num.bin <- 20
+  data.x.bin <- cut(x = ExpMeans, breaks = num.bin)
+  
+  names(x = data.x.bin) <- names(x = ExpMeans)
+  
+  mean.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = mean)
+  sd.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = sd)
   
   #scale dispersions
-    scaled.dispersions <- (dispersions - mean.y[as.numeric(x = data.x.bin)]) /
-      sd.y[as.numeric(x = data.x.bin)]
-    names(x = scaled.dispersions) <- names(x = ExpMeans)
-
-
+  scaled.dispersions <- (dispersions - mean.y[as.numeric(x = data.x.bin)]) /
+    sd.y[as.numeric(x = data.x.bin)]
+  names(x = scaled.dispersions) <- names(x = ExpMeans)
+  
+  
   #find variable features
-    var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff & 
-                                    ExpMeans > mean.low.cutoff & 
-                                    ExpMeans < mean.high.cutoff])  
+  var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff & 
+                                      ExpMeans > mean.low.cutoff & 
+                                      ExpMeans < mean.high.cutoff])  
   return(var.features)
 }
 
@@ -74,8 +74,8 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
   }
-
-
+  
+  
   #calculate within class scatter matrix for each cluster
   wcsm <- c()
   k= 1
@@ -84,7 +84,7 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     wcsm[[k]] <- (t(t(dataMatrix) - clustermeans[[k]])) %*% (t(dataMatrix) - clustermeans[[k]])
     k = k + 1
   }
-
+  
   #add all within class scatter matrices together
   #Sw <- matrix(0L, nrow = nrow(wcsm[[1]]), ncol = ncol(wcsm[[1]]))
   Sw <- array(0L, dim(wcsm[[1]]))
@@ -95,13 +95,13 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     Sw <- Sw + ((dim(splitclusters[[k]])[1])/n_obs) * i
     k = k + 1
   }
-
+  
   if (diag == TRUE) {
     #set off-diagonal entries to 0
     Sw <- diag(diag(Sw))
   }
   return(Sw)
-
+  
 }
 
 #' Compute each cluster's within class scatter matrix (for QDA)
@@ -120,7 +120,7 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
   }
-
+  
   #calculate within class scatter matrix for each cluster
   wcsm <- c()
   k= 1
@@ -129,7 +129,7 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     wcsm[[k]] <- (t(t(dataMatrix) - clustermeans[[k]])) %*% (t(dataMatrix) - clustermeans[[k]])
     k = k + 1
   }
-
+  
   if (diag == TRUE) {
     #set off-diagonal entries to 0
     wcsm_diag <- c()
@@ -144,7 +144,7 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     message("within cluster scatter matrix complete")
     return(wcsm)
   }
-
+  
 }
 
 #'  Compute the between class scatter matrix
@@ -162,20 +162,21 @@ betweenclass_scatter_matrix <- function(splitclusters){
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
   }
-
+  
   #calculate overallMeans for each feature
   overallMeanVector <- c()
   for (i in 1:length(clustermeans[[1]])) {
     overallMeanVector[[i]] = mean(sapply(clustermeans, function(l) l[[i]]))
   }
-
+  
   #calculate each btsc matrix per cluster
   btsc <- c()
+  
   for (i in 1:length(clustermeans)) {
-  btsc[[i]] <- ((clustermeans[[i]] - overallMeanVector) %*% t(clustermeans[[i]] - overallMeanVector))
-  #* length(rownames(splitclusters[[1]]))
+    btsc[[i]] <- ((clustermeans[[i]] - unlist(overallMeanVector)) %*% t(clustermeans[[i]] - unlist(overallMeanVector)))
+    #* length(rownames(splitclusters[[1]]))
   }
-
+  
   #add all btsc's together
   Sb <- array(0L, dim(btsc[[1]]))
   k = 1
@@ -241,7 +242,7 @@ getSNN <- function(data.use,
   data.use <- as.matrix(data.use)
   
   n.obs <- nrow(x = data.use)
-
+  
   if (n.obs < k.param) {
     warning(
       "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
@@ -249,7 +250,7 @@ getSNN <- function(data.use,
     )
     k.param <- n.obs - 1
   }
-
+  
   ## TODO: refactor this to avoid code duplication
   if (!is.numeric(set.seed)){
     
@@ -282,7 +283,7 @@ getSNN <- function(data.use,
     snn.matrix[snn.matrix < 1/15] <- 0
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
-
+    
     snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
     return(snn.graph)
   }
@@ -318,8 +319,5 @@ getSNN <- function(data.use,
 #   }
 #   
 # }  
-
-
-
 
 
