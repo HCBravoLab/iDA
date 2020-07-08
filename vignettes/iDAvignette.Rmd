@@ -60,6 +60,7 @@ sce <- iDA(sce, set.seed = 123, diag = TRUE, dispersion.cutoff = .5)
 #cluster assignments
 sce_iDAident <- colLabels(sce)$iDAclusters
 
+
 #iDA sample embedding
 sce_iDAembedding <- as.data.frame(reducedDims(sce)$iDAcellweights)
 colnames(sce_iDAembedding) <- paste("LD", 1:dim(sce_iDAembedding)[2], sep = "")
@@ -206,6 +207,7 @@ Tent5c, CD36, Slfn14 all show up again in LD6 as top genes separating cluster 3 
 ```
 
 His1h1b, Hbb-bh3, Ifitm1, and Pclaf are the best genes separating cluster 3 and 6 in LD7. 
+
 
 
 

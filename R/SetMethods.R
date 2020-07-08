@@ -42,23 +42,27 @@ setMethod("iDA", "matrix",
 
 setMethod("iDA", "SingleCellExperiment",
           function(object, ...) {
+
+              if (!('logcounts' %in% names(assays(object)))){
+                    counts <- assay(object, "counts")
+                    libsizes <- colSums(counts)
+                    size.factors <- libsizes/mean(libsizes)
+                    logcounts(object) <- log2(t(t(counts)/size.factors) + 1)
+              }
             
-            if (!('logcounts' %in% names(assays(object)))){
-              counts <- assay(object, "counts")
-              libsizes <- colSums(counts)
-              size.factors <- libsizes/mean(libsizes)
-              logcounts(object) <- log2(t(t(counts)/size.factors) + 1)
-            }
             
+              normcounts <-  logcounts(object)
             
-            normcounts <-  logcounts(object)
-            
-            iDA_sce <- iDA(normcounts, scaled = TRUE, ...)
-            
-            reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
-            colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
-            return(object)
+              iDA_sce <- iDA(normcounts, scaled = TRUE, ...)
+     
+              reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
+              colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
+              
+              return(object)
+
           })
+
+
 
 
 #' Method for Seurat object to input data to iDA 
