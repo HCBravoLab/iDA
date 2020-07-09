@@ -22,7 +22,7 @@ setGeneric("iDA", signature=c("object"),
 setMethod("iDA", "matrix",
           function(object, ...) {
             
-            iDAoutput <- iDA_core(object)
+            iDAoutput <- iDA_core(object, ...)
             return(iDAoutput)
             
           })
@@ -78,7 +78,7 @@ setMethod("iDA", "SingleCellExperiment",
 
 setMethod("iDA", "Seurat",
           function(object, assay, ...) {
-            
+  
             if (length(object[[assay]]@scale.data) == 0){
               object <- NormalizeData(object, normalization.method = "LogNormalize", scale.factor = 10000)
               all.genes <- rownames(object)
@@ -88,16 +88,17 @@ setMethod("iDA", "Seurat",
               counts <- object[[assay]]@scale.data
             }
             
-            
+
             iDA_seurat <- iDA(counts, scaled = TRUE, ...)
             
             object[["iDA"]] <- CreateDimReducObject(embeddings = iDA_seurat[[2]], 
-                                                    key = "LD", 
+                                                    key = "LD_", 
                                                     loadings = iDA_seurat[[3]], 
                                                     assay = assay)
-            
+         
             object@meta.data[["iDA_clust"]] <- iDA_seurat[[1]]
-            
             return(object)
           })
+
+
 

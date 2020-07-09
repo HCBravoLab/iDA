@@ -6,6 +6,7 @@
 \usage{
 iDA_core(
   data.use,
+  scaled = FALSE,
   mean.low.cutoff = 0.1,
   mean.high.cutoff = 8,
   dispersion.cutoff = 1,
@@ -18,6 +19,8 @@ iDA_core(
 }
 \arguments{
 \item{data.use}{(data.frame) A dataframe of scaled data to find embedding for. (sample x feature)}
+
+\item{scaled}{(boolean) An indicator of if the data has already been normalized and scaled.}
 
 \item{mean.low.cutoff}{(numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]}
 

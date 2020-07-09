@@ -115,7 +115,7 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
 withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
   #calculate means vector for each cluster
   clustermeans <- c()
-  k=1
+  k <- 1
   for (i in splitclusters) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
@@ -127,16 +127,16 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
   for (i in splitclusters) {
     dataMatrix <- t(i[,4:(length(clustermeans[[k]])+3)])
     wcsm[[k]] <- (t(t(dataMatrix) - clustermeans[[k]])) %*% (t(dataMatrix) - clustermeans[[k]])
-    k = k + 1
+    k <- k + 1
   }
   
   if (diag == TRUE) {
     #set off-diagonal entries to 0
     wcsm_diag <- c()
-    k=1
+    k <- 1
     for (i in wcsm){
       wcsm_diag[[k]] <- diag(diag(i))
-      k = k + 1
+      k <-  k + 1
     }
     message("within cluster scatter matrix complete")
     return(wcsm_diag)
@@ -157,16 +157,16 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
 betweenclass_scatter_matrix <- function(splitclusters){
   #calculate means vector for each cluster
   clustermeans <- c()
-  k=1
+  k <- 1
   for (i in splitclusters) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
-    k = k + 1
+    k <- k + 1
   }
   
   #calculate overallMeans for each feature
   overallMeanVector <- c()
   for (i in 1:length(clustermeans[[1]])) {
-    overallMeanVector[[i]] = mean(sapply(clustermeans, function(l) l[[i]]))
+    overallMeanVector[[i]] <- mean(sapply(clustermeans, function(l) l[[i]]))
   }
   
   #calculate each btsc matrix per cluster
@@ -179,10 +179,10 @@ betweenclass_scatter_matrix <- function(splitclusters){
   
   #add all btsc's together
   Sb <- array(0L, dim(btsc[[1]]))
-  k = 1
+  k <- 1
   for (i in btsc) {
     Sb <- Sb + i
-    k = k + 1
+    k <- k + 1
   }
   return(Sb)
 }
@@ -197,7 +197,7 @@ decomposesvd <- function(withinclust_sc_mat,
     top_eigenvectors <- svd$u[,1:nu]
     return(top_eigenvectors)
   } else if(is.numeric(set.seed)) {
-    set.seed = set.seed
+    set.seed <- set.seed
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
     return(top_eigenvectors)
@@ -211,7 +211,7 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
     top_eigenvectors <- svd$u
     return(top_eigenvectors)
   } else if (is.numeric(set.seed)){
-    set.seed = set.seed
+    set.seed <- set.seed
     svd <- irlba(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u
     return(top_eigenvectors)
@@ -254,7 +254,7 @@ getSNN <- function(data.use,
   ## TODO: refactor this to avoid code duplication
   if (!is.numeric(set.seed)){
     
-    SNN_igraph = scran::buildKNNGraph(
+    SNN_igraph <- scran::buildKNNGraph(
       data.use, 
       k = k.param, 
       transposed = TRUE)
@@ -272,11 +272,11 @@ getSNN <- function(data.use,
   } else if (is.numeric(set.seed)){
     set.seed(set.seed)
     
-    SNN_igraph = scran::buildKNNGraph(
+    SNN_igraph <- scran::buildKNNGraph(
       data.use, 
       k = k.param, 
       transposed = TRUE)
-    snn.matrix = similarity(
+    snn.matrix <- similarity(
       SNN_igraph, 
       method = "jaccard")
     

@@ -4,6 +4,7 @@
 #'  the LDA transformed data space.
 #'  
 #' @param data.use (data.frame) A dataframe of scaled data to find embedding for. (sample x feature)
+#' @param scaled (boolean) An indicator of if the data has already been normalized and scaled.
 #' @param mean.low.cutoff  (numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]
 #' @param mean.high.cutoff (numeric) Top cutoff on mean for identifying variable genes (passed to [`VariableGenes`])
 #' @param dispersion.cutoff (numeric) Bottom cutoff on dispersion for identifying variable genes (passed to [`VariableGenes`])
@@ -26,7 +27,8 @@
 #'@export
 #'
 
-iDA_core <- function(data.use,  
+iDA_core <- function(data.use,
+                     scaled = FALSE,
                      mean.low.cutoff = 0.1, 
                      mean.high.cutoff = 8,
                      dispersion.cutoff = 1,
@@ -37,14 +39,22 @@ iDA_core <- function(data.use,
                      set.seed = FALSE
 ){
   
-  
+ # if (scaled == FALSE){
+    #normalize data by dividing by the sum of cell feature counts and then multiplying the cell counts by 10000
+  #  data.use.norm <- Matrix::t((Matrix::t(data.use)/ Matrix::colSums(data.use))* 10000)
+   # data.use.norm <- log1p(data.use.norm)
+    
+    #scale data with max 10
+    #data.use.scaled <- scale(data.use.norm)
+#  }
+
   #find variable features
-  #  svd_time = 0 
+  #  svd_time <- 0 
   var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
-  
+
   #calculate svd for covariance matrix of variable_features
   
-  #start_svd = Sys.time()
+  #start_svd <- Sys.time()
   var_data <- data.use[var.features,]
   if(!is.numeric(set.seed)){
     svd <- svdr(as.matrix(var_data), k = dims.use)
@@ -66,13 +76,13 @@ iDA_core <- function(data.use,
   snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
   
   #cluster
-  walktrapClusters = igraph::cluster_walktrap(snn)
+  walktrapClusters <- igraph::cluster_walktrap(snn)
   
   
   #pick highet modularity 
-  modularity = c()
+  modularity <- c()
   for (i in 1:15){
-    modularity = c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
+    modularity <- c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
     
   }
   
@@ -88,7 +98,7 @@ iDA_core <- function(data.use,
   #start iterations
   i = 1
   while(sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1] < .98) {
-    concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
+    concordance <- sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
     message(paste0("iteration ", i))
     message(paste0("concordance: ", concordance))
     
@@ -150,13 +160,13 @@ iDA_core <- function(data.use,
     snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
     
     #cluster
-    walktrapClusters = igraph::cluster_walktrap(snn_transformed)
+    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
     
     
     #pick highest modularity 
     modularity = c()
     for (j in 1:15){
-      modularity = c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
+      modularity <- c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
     }
     
     maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
@@ -168,8 +178,8 @@ iDA_core <- function(data.use,
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
   }
-  concordance = sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
-  geneweights = eigenvecs
+  concordance <- sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
+  geneweights <- eigenvecs
   
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
@@ -179,6 +189,6 @@ iDA_core <- function(data.use,
   
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights))
+  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features))
 }
 
