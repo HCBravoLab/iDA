@@ -50,7 +50,7 @@ setMethod("iDA", "SingleCellExperiment",
                     logcounts(object) <- log2(t(t(counts)/size.factors) + 1)
               }
             
-            
+    
               normcounts <-  logcounts(object)
             
               iDA_sce <- iDA(normcounts, scaled = TRUE, ...)
@@ -58,6 +58,9 @@ setMethod("iDA", "SingleCellExperiment",
               reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
               colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
               
+             rowData(sce[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
+             
+             SingleCellExperiment::rowSubset(sce, iDA_sce[[4]]) 
               return(object)
 
           })
