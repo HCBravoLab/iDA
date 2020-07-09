@@ -206,13 +206,16 @@ ggplot(scescaled_topgenesLD7, aes(group = as.factor(V11), y = ENSMUSG00000040204
 
 ggplot(scescaled_topgenesLD7, aes(group = as.factor(V11), y = ENSMUSG00000082101, col = as.factor(V11))) + geom_boxplot() + labs(colour = "iDA Cluster")
 
-ggplot(scescaled_topgenesLD7, aes(group = as.factor(V11), y = ENSMUSG00000042066, col = as.factor(V11))) + geom_boxplot() + labs(colour = "iDA Cluster")
+ggplot(scescaled_topgenesLD7, aes(group = as.factor(V11), y = ENSMUSG00000058773, col = as.factor(V11))) + geom_boxplot() + labs(colour = "iDA Cluster")
+
+ggplot(scescaled_topgenesLD7, aes(group = as.factor(V11), y = ENSMUSG00000083012, col = as.factor(V11))) + geom_boxplot() + labs(colour = "iDA Cluster")
+
 
 
 
 ```
 
-Pclaf, Slfn14, and Tmcc2 are the best genes separating cluster 4 and 7 in LD7. 
+Pclaf, Slfn14, H1f5 and Fam220a are the best genes separating cluster 4 and 7 in LD7. 
 
 
 
