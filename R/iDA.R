@@ -35,7 +35,7 @@ iDA_core <- function(data.use,
                      k.param = 10,
                      prune.SNN = 1/15,
                      dims.use = 10,
-                     diag = FALSE, 
+                     diag = TRUE, 
                      set.seed = FALSE
 ){
   
