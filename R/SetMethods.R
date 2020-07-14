@@ -50,16 +50,16 @@ setMethod("iDA", "SingleCellExperiment",
                     logcounts(object) <- log2(t(t(counts)/size.factors) + 1)
               }
             
-    
+            
               normcounts <-  logcounts(object)
             
-              iDA_sce <- iDA(normcounts, scaled = TRUE, ...)
+              iDA_sce <- iDA(normcounts, NormCounts = normcounts, scaled = TRUE, ...)
      
               reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
               colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
               
-             rowData(object[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
-             
+              rowData(object[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
+
               return(object)
 
           })
@@ -76,7 +76,6 @@ setMethod("iDA", "SingleCellExperiment",
 #' @return Seurat object with iDA cell weights and gene weights stored in object[["iDA"]] and cluster assignments stored in rowLabels
 #' @export
 #' 
-#' 
 
 setMethod("iDA", "Seurat",
           function(object, assay, ...) {
@@ -86,12 +85,14 @@ setMethod("iDA", "Seurat",
               all.genes <- rownames(object)
               object <- ScaleData(object)
               counts <- object[[assay]]@scale.data
+              NormCounts <- object[[assay]]@data
             } else {
               counts <- object[[assay]]@scale.data
+              NormCounts <- object[[assay]]@data
             }
             
-
-            iDA_seurat <- iDA(counts, scaled = TRUE, ...)
+            
+            iDA_seurat <- iDA(counts, NormCounts = NormCounts, scaled = TRUE, ...)
             
             object[["iDA"]] <- CreateDimReducObject(embeddings = iDA_seurat[[2]], 
                                                     key = "LD_", 
