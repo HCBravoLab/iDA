@@ -5,6 +5,7 @@
 #'  
 #' @param data.use (data.frame) A dataframe of scaled data to find embedding for. (sample x feature)
 #' @param scaled (boolean) An indicator of if the data has already been normalized and scaled.
+#' @param var.Features Which method to use when finding variable features
 #' @param mean.low.cutoff  (numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]
 #' @param mean.high.cutoff (numeric) Top cutoff on mean for identifying variable genes (passed to [`VariableGenes`])
 #' @param dispersion.cutoff (numeric) Bottom cutoff on dispersion for identifying variable genes (passed to [`VariableGenes`])
@@ -31,15 +32,15 @@
 iDA_core <- function(data.use,
                      NormCounts = NULL, 
                      scaled = FALSE,
-                     #mean.low.cutoff = 0.1, 
-                     #mean.high.cutoff = 8,
-                     #dispersion.cutoff = 1,
+                     var.Features = "scran",
+                     mean.low.cutoff = 0.1, 
+                     mean.high.cutoff = 8,
+                     dispersion.cutoff = 1,
                      k.param = 10,
                      prune.SNN = 1/15,
                      dims.use = 10,
                      diag = TRUE, 
-                     set.seed = FALSE, 
-                     var.features = FALSE
+                     set.seed = FALSE
 ){
   
  # if (scaled == FALSE){
@@ -53,10 +54,12 @@ iDA_core <- function(data.use,
 
   #find variable features
   #  svd_time <- 0 
-    if (var.features == FALSE) {
+    if (var.Features == "scran") {
       stats <- scran::modelGeneVar(NormCounts)
       var.features <- scran::getTopHVGs(stats, n = 2500)
-      #var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+  
+    } else if (var.Features == "disp") {
+      var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
     }
 
   #calculate svd for covariance matrix of variable_features
@@ -80,14 +83,19 @@ iDA_core <- function(data.use,
     snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
 
   #cluster
-    walktrapClusters <- igraph::cluster_walktrap(snn)
+    if(!is.numeric(set.seed)){
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+    } else if (is.numeric(set.seed)){
+      set.seed(set.seed)
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+    }
+
   
 
   #pick highest modularity 
     modularity <- c(0)
     for (i in 2:15){
-      modularity <- c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
-      
+      modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
     }
     
     maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
@@ -179,7 +187,7 @@ iDA_core <- function(data.use,
     #pick highest modularity 
     modularity = c(0)
     for (j in 2:15){
-      modularity <- c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
+      modularity <- c(modularity, modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
     }
     
     maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
