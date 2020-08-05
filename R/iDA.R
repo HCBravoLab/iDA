@@ -112,6 +112,7 @@ iDA_core <- function(data.use,
     } else {
       stop("Invalid c.param")
     }
+    
     #end_louvain <- Sys.time()
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     
@@ -196,13 +197,20 @@ iDA_core <- function(data.use,
     
     
     #pick highest modularity 
-    modularity = c(0)
-    for (j in 2:15){
-      modularity <- c(modularity, modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+    if (is.null(c.param)){
+      modularity <- c(0)
+      for (j in 2:15){
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+      }
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+      clusters <- cbind(clusters, currentclust = maxmodclust)
+    } else if (is.numeric(c.param)) {
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+      clusters <- cbind(clusters, currentclust = maxmodclust)
+    } else {
+      stop("Invalid c.param")
     }
-    
-    maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-    clusters <- cbind(clusters, maxmodclust)
+  
     
     #concordance
     counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
