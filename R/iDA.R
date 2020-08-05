@@ -20,7 +20,7 @@
 #' @param diag Diagonalize the within class scatter matrix (assume the features are independent
 #' within each cluster)
 #' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph. (passed to [`getSNN`])
-#'
+#' @param c.param (numeric) Defines the number of desired clusters to be found in the embedding
 #' @import irlba 
 #' @import igraph
 #' @import plyr
@@ -40,7 +40,8 @@ iDA_core <- function(data.use,
                      prune.SNN = 1/15,
                      dims.use = 10,
                      diag = TRUE, 
-                     set.seed = FALSE
+                     set.seed = FALSE, 
+                     c.param = NULL
 ){
   
  # if (scaled == FALSE){
@@ -63,7 +64,7 @@ iDA_core <- function(data.use,
       }
 
     } else if (var.Features == "disp") {
-      var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+      var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
     }
 
   #calculate svd for covariance matrix of variable_features
@@ -96,7 +97,8 @@ iDA_core <- function(data.use,
 
   
 
-  #pick highest modularity 
+  #pick highest modularity
+    if (is.null(c.param)){
     modularity <- c(0)
     for (i in 2:15){
       modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
@@ -104,7 +106,12 @@ iDA_core <- function(data.use,
     
     maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
     clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
-    
+    } else if (is.numeric(c.param)) {
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+    } else {
+      stop("Invalid c.param")
+    }
     #end_louvain <- Sys.time()
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     
