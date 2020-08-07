@@ -42,6 +42,7 @@ setMethod("iDA", "SingleCellExperiment",
               reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
               colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
               rowData(object[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
+
               return(object)
           })
 
@@ -53,15 +54,19 @@ setMethod("iDA", "SingleCellExperiment",
 #' @import Seurat Seurat
 #' @return Seurat object with iDA cell weights and gene weights stored in object[["iDA"]] and cluster assignments stored in rowLabels
 #' @export
+
 setMethod("iDA", "Seurat",
           function(object, assay, ...) {
+
             if (length(object[[assay]]@scale.data) == 0){
               object <- NormalizeData(object, normalization.method = "LogNormalize", scale.factor = 10000)
               all.genes <- rownames(object)
               object <- ScaleData(object)
               counts <- object[[assay]]@scale.data
+              NormCounts <- object[[assay]]@data
             } else {
               counts <- object[[assay]]@scale.data
+              NormCounts <- object[[assay]]@data
             }
 
             iDA_seurat <- iDA(counts, scaled = TRUE, ...)
@@ -71,5 +76,6 @@ setMethod("iDA", "Seurat",
                                                     assay = assay)
 
             object@meta.data[["iDA_clust"]] <- iDA_seurat[[1]]
+            object@reductions$iDA@stdev <- iDA_seurat[[5]]
             return(object)
           })

@@ -189,12 +189,14 @@ decomposesvd <- function(withinclust_sc_mat,
   if (!is.numeric(set.seed)) {
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
-    return(top_eigenvectors)
+    top_eigenvalues <- svd$d[1:nu]
+    return(list(top_eigenvectors, top_eigenvalues))
   } else if(is.numeric(set.seed)) {
     set.seed <- set.seed
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
-    return(top_eigenvectors)
+    top_eigenvalues <- svd$d[1:nu]
+    return(list(top_eigenvectors, top_eigenvalues))
   }
 }
 

@@ -5,6 +5,7 @@
 #'
 #' @param data.use (data.frame) A dataframe of scaled data to find embedding for. (sample x feature)
 #' @param scaled (boolean) An indicator of if the data has already been normalized and scaled.
+#' @param var.Features Which method to use when finding variable features
 #' @param mean.low.cutoff  (numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]
 #' @param mean.high.cutoff (numeric) Top cutoff on mean for identifying variable genes (passed to [`VariableGenes`])
 #' @param dispersion.cutoff (numeric) Bottom cutoff on dispersion for identifying variable genes (passed to [`VariableGenes`])
@@ -19,22 +20,28 @@
 #' @param diag Diagonalize the within class scatter matrix (assume the features are independent
 #' within each cluster)
 #' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph. (passed to [`getSNN`])
+#' @param c.param (numeric) Defines the number of desired clusters to be found in the embedding
 #'
 #' @import irlba
 #' @import igraph
+#' @import plyr
 #' @return n number of dataframes for each cluster's data
 #'
 #'@export
 iDA_core <- function(data.use,
+                     NormCounts = NULL, 
                      scaled = FALSE,
-                     mean.low.cutoff = 0.1,
+                     var.Features = "scran",
+                     mean.low.cutoff = 0.1, 
                      mean.high.cutoff = 8,
                      dispersion.cutoff = 1,
                      k.param = 10,
                      prune.SNN = 1/15,
                      dims.use = 10,
-                     diag = TRUE,
-                     set.seed = FALSE){
+                     diag = TRUE, 
+                     set.seed = FALSE, 
+                     c.param = NULL
+){
 
  # if (scaled == FALSE){
     #normalize data by dividing by the sum of cell feature counts and then multiplying the cell counts by 10000
@@ -46,61 +53,88 @@ iDA_core <- function(data.use,
 #  }
 
   #find variable features
-  #  svd_time <- 0
-  var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff,
-                                mean.low.cutoff = mean.low.cutoff,
-                                mean.high.cutoff = mean.high.cutoff)
+
+  #  svd_time <- 0 
+    if (var.Features == "scran") {
+      stats <- scran::modelGeneVar(NormCounts)
+      if (dim(data.use)[1] < 3000){
+        var.features <- rownames(data.use)
+      } else {
+        var.features <- scran::getTopHVGs(stats, n = 3000)
+      }
+
+    } else if (var.Features == "disp") {
+      var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+    }
 
   #calculate svd for covariance matrix of variable_features
-
   #start_svd <- Sys.time()
-  var_data <- data.use[var.features,]
-  if(!is.numeric(set.seed)) {
-    svd <- svdr(as.matrix(var_data), k = dims.use)
-  } else if (is.numeric(set.seed)) {
-    set.seed(set.seed)
-    svd <- svdr(as.matrix(var_data), k = dims.use)
-  }
-  #end_svd <- Sys.time()
-  #svd_time <- svd_time + (end_svd - start_svd)
+    var_data <- data.use[var.features,]
+    if(!is.numeric(set.seed)){
+      svd <- svdr(as.matrix(var_data), k = dims.use)
+    } else if (is.numeric(set.seed)){
+      set.seed(set.seed)
+      svd <- svdr(as.matrix(var_data), k = dims.use)
+    }
+    #end_svd <- Sys.time()
+    #svd_time <- svd_time + (end_svd - start_svd)
   #transform data
-  transformed <- svd$v
-  rownames(transformed) <- colnames(var_data)
-
-
+    transformed <- svd$v
+    rownames(transformed) <- colnames(var_data)
+    
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
   #start_louvain <- Sys.time()
-
-  snn <- getSNN(data.use = transformed, set.seed = set.seed,
-                k.param = k.param, prune.SNN = prune.SNN)
+    snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
 
   #cluster
-  walktrapClusters <- igraph::cluster_walktrap(snn)
+    if(!is.numeric(set.seed)){
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+    } else if (is.numeric(set.seed)){
+      set.seed(set.seed)
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+    }
 
+  
 
-  #pick highet modularity
-  modularity <- c()
-  for (i in 1:15){
-    modularity <- c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
+  #pick highest modularity
+    if (is.null(c.param)){
+      modularity <- c(0)
+      for (i in 2:15){
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+      }
+      
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+    } else if (is.numeric(c.param)) {
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+    } else {
+      stop("Invalid c.param")
+    }
+    
+    #end_louvain <- Sys.time()
+    #louvain_time = louvain_time + (end_louvain - start_louvain)
+    
+    rownames(clusters) <- rownames(transformed)
+  
+  #concordance
+  counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
+  splitcounts <- split(counts , f = as.factor(counts[,1]))
+  maxsplit <- c()
+  for (j in 1:length(splitcounts))  {
+    maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
+  }  
+  concordance <- sum(maxsplit)/dim(data.use)[2]
 
-  }
-
-  maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-  clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
-
-  #end_louvain <- Sys.time()
-  #louvain_time = louvain_time + (end_louvain - start_louvain)
-
-  rownames(clusters) <- rownames(transformed)
-
+  
+  
   #start iterations
-  i = 1
-  ## Maybe make this a parameter?
-  while(sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1] < 0.98) {
-    concordance <- sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
+  i = 1        
+  while(concordance < .98) {
     message(paste0("iteration ", i))
     message(paste0("concordance: ", concordance))
+ 
 
     #merge data with cluster
     currentcluster <- as.data.frame(clusters[,i + 1])
@@ -151,28 +185,47 @@ iDA_core <- function(data.use,
     # }
 
     #transform data
-    eigenvectransformed <- t(var_data) %*% eigenvecs
+    eigenvectransformed <- t(var_data) %*% eigenvecs[[1]]
 
     #calculate SNN matrix for top LDs
     #start_louvain = Sys.time()
     snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
     #cluster
     walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
-
-    #pick highest modularity
-    modularity = c()
-    for (j in 1:15){
-      modularity <- c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
+  
+    
+    #pick highest modularity 
+    if (is.null(c.param)){
+      modularity <- c(0)
+      for (j in 2:15){
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+      }
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+      clusters <- cbind(clusters, currentclust = maxmodclust)
+    } else if (is.numeric(c.param)) {
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+      clusters <- cbind(clusters, currentclust = maxmodclust)
+    } else {
+      stop("Invalid c.param")
     }
+  
+ 
+    #concordance
+    counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
+    splitcounts <- split(counts , f = as.factor(counts[,1]))
+    maxsplit <- c()
+    for (j in 1:length(splitcounts))  {
+      maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
+    }  
+    concordance <- sum(maxsplit)/dim(data.use)[2]
 
-    maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-    clusters <- cbind(clusters, maxmodclust)
     #end_louvain = Sys.time()
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
   }
-  concordance <- sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
-  geneweights <- eigenvecs
+  
+  geneweights <- eigenvecs[[1]]
+  stdev <- eigenvecs[[2]]
 
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
@@ -182,5 +235,5 @@ iDA_core <- function(data.use,
 
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features))
+  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features, stdev))
 }
