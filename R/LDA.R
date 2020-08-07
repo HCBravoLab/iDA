@@ -1,49 +1,47 @@
-#' Find Variable Genes 
+#' Find Variable Genes
 #'
 #' Identify rows in a data frame with high sclaed dispersion. This rule was
 #' taken from the Seurat package.
-#' 
+#'
 #' @param data.use (data.frame) features are rows, samples are columns. Rows must be named.
 #' @param dispersion.cutoff (numeric) rows returned will have scaled dispersion higher provided cutoff
 #' @param mean.low.cutoff (numeric) rows returned will have average higher than this cutoff
 #' @param mean.high.cutoff (numeric) rows returned will have average lower than this cutoff
-#' 
+#'
 #' @importFrom stats sd var
-#' 
+#'
 #' @return (character) a list of row names with high dispersion rows
 #' @export
-VariableGenes <- function(data.use, 
-                          dispersion.cutoff, 
-                          mean.low.cutoff, 
-                          mean.high.cutoff) 
-{
+VariableGenes <- function(data.use,
+                          dispersion.cutoff,
+                          mean.low.cutoff,
+                          mean.high.cutoff) {
   #calculate logged means and VMR
   ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
   dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
-  
+
   names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
   dispersions[is.na(x = dispersions)] <- 0
   ExpMeans[is.na(x = ExpMeans)] <- 0
-  
+
   #create bins to scale mean and dispersions
   num.bin <- 20
   data.x.bin <- cut(x = ExpMeans, breaks = num.bin)
-  
+
   names(x = data.x.bin) <- names(x = ExpMeans)
-  
+
   mean.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = mean)
   sd.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = sd)
-  
+
   #scale dispersions
   scaled.dispersions <- (dispersions - mean.y[as.numeric(x = data.x.bin)]) /
     sd.y[as.numeric(x = data.x.bin)]
   names(x = scaled.dispersions) <- names(x = ExpMeans)
-  
-  
+
   #find variable features
-  var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff & 
-                                      ExpMeans > mean.low.cutoff & 
-                                      ExpMeans < mean.high.cutoff])  
+  var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff &
+                                      ExpMeans > mean.low.cutoff &
+                                      ExpMeans < mean.high.cutoff])
   return(var.features)
 }
 
@@ -61,7 +59,7 @@ split_clusters <- function(data, clusterIDcol) {
 #' Compute each cluster's within class scatter matrix
 #'
 #' Takes in the output from split_clusters() and computes the within class scatter matrix
-#' 
+#'
 #' @param splitclusters A list of dataframes with scaled data from each cluster (output from split_clusters())
 #' @param diag if off diagonal entries in within class scatter matrix should be zeroed
 #'
@@ -74,8 +72,7 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
   }
-  
-  
+
   #calculate within class scatter matrix for each cluster
   wcsm <- c()
   k= 1
@@ -84,7 +81,7 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     wcsm[[k]] <- (t(t(dataMatrix) - clustermeans[[k]])) %*% (t(dataMatrix) - clustermeans[[k]])
     k = k + 1
   }
-  
+
   #add all within class scatter matrices together
   #Sw <- matrix(0L, nrow = nrow(wcsm[[1]]), ncol = ncol(wcsm[[1]]))
   Sw <- array(0L, dim(wcsm[[1]]))
@@ -101,13 +98,12 @@ withinclass_scattermatrix_LDA <- function(splitclusters, diag = FALSE) {
     Sw <- diag(diag(Sw))
   }
   return(Sw)
-  
 }
 
 #' Compute each cluster's within class scatter matrix (for QDA)
 #'
 #' Takes in the output from split_clusters() and computes the within class scatter matrix
-#' 
+#'
 #' @param splitclusters A list of dataframes with scaled data from each cluster (output from split_clusters())
 #' @param diag if off diagonal entries in within class scatter matrix should be zeroed
 #'
@@ -120,7 +116,7 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k = k + 1
   }
-  
+
   #calculate within class scatter matrix for each cluster
   wcsm <- c()
   k= 1
@@ -129,7 +125,7 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     wcsm[[k]] <- (t(t(dataMatrix) - clustermeans[[k]])) %*% (t(dataMatrix) - clustermeans[[k]])
     k <- k + 1
   }
-  
+
   if (diag == TRUE) {
     #set off-diagonal entries to 0
     wcsm_diag <- c()
@@ -144,12 +140,11 @@ withinclass_scattermatrix_QDA <- function(splitclusters, diag = FALSE) {
     message("within cluster scatter matrix complete")
     return(wcsm)
   }
-  
 }
 
-#'  Compute the between class scatter matrix
+#' Compute the between class scatter matrix
 #'
-#'  Takes in a list of dataframes with scaled data (output from split_clusters) and returns the between class scatter matrix
+#' Takes in a list of dataframes with scaled data (output from split_clusters) and returns the between class scatter matrix
 #' @param splitclusters A list of dataframes (from the output of split_clusters) with scaled data from each cluster
 #'
 #' @return returns the between class scatter matrix
@@ -162,21 +157,21 @@ betweenclass_scatter_matrix <- function(splitclusters){
     clustermeans[[k]] <- colMeans(i[,3:(length(i))])
     k <- k + 1
   }
-  
+
   #calculate overallMeans for each feature
   overallMeanVector <- c()
   for (i in 1:length(clustermeans[[1]])) {
     overallMeanVector[[i]] <- mean(sapply(clustermeans, function(l) l[[i]]))
   }
-  
+
   #calculate each btsc matrix per cluster
   btsc <- c()
-  
+
   for (i in 1:length(clustermeans)) {
     btsc[[i]] <- ((clustermeans[[i]] - unlist(overallMeanVector)) %*% t(clustermeans[[i]] - unlist(overallMeanVector)))
     #* length(rownames(splitclusters[[1]]))
   }
-  
+
   #add all btsc's together
   Sb <- array(0L, dim(btsc[[1]]))
   k <- 1
@@ -187,10 +182,9 @@ betweenclass_scatter_matrix <- function(splitclusters){
   return(Sb)
 }
 
-
 ## TODO: This is not using set.seed properly
-decomposesvd <- function(withinclust_sc_mat, 
-                         betweenclust_sc_mat, 
+decomposesvd <- function(withinclust_sc_mat,
+                         betweenclust_sc_mat,
                          nu = 10, set.seed = FALSE) {
   if (!is.numeric(set.seed)) {
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
@@ -222,7 +216,7 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
 
 #' Cluster Determination
 #'
-#' Calculate k-nearest neighbors and construct a shared nearest neighbor (SNN) graph. 
+#' Calculate k-nearest neighbors and construct a shared nearest neighbor (SNN) graph.
 #'
 #' @param data.use (matrix) Matrix with scaled data to find nearest neighbors
 #' @param k.param (numeric) Defines k for the k-nearest neighbor algorithm
@@ -233,18 +227,17 @@ decomposeirlba <- function(withinclust_sc_mat, betweenclust_sc_mat, nu = 10, set
 #' prune everything).
 #' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph
 #'
-#' @import igraph 
+#' @import igraph
 #' @import scran
-#' 
-#' @return The SNN graph (igraph object) 
-getSNN <- function(data.use, 
-                   k.param = 10, 
-                   prune.SNN = 1/15, 
+#'
+#' @return The SNN graph (igraph object)
+getSNN <- function(data.use,
+                   k.param = 10,
+                   prune.SNN = 1/15,
                    set.seed = FALSE) {
   data.use <- as.matrix(data.use)
-  
   n.obs <- nrow(x = data.use)
-  
+
   if (n.obs < k.param) {
     warning(
       "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
@@ -252,47 +245,44 @@ getSNN <- function(data.use,
     )
     k.param <- n.obs - 1
   }
-  
+
   ## TODO: refactor this to avoid code duplication
   if (!is.numeric(set.seed)){
-    
+
     SNN_igraph <- scran::buildKNNGraph(
-      data.use, 
-      k = k.param, 
+      data.use,
+      k = k.param,
       transposed = TRUE)
     snn.matrix <- similarity(
-      SNN_igraph, 
+      SNN_igraph,
       method = "jaccard")
-    
+
     snn.matrix[snn.matrix < 1/15] <- 0
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
-    
+
     snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
     return(snn.graph)
-    
+
   } else if (is.numeric(set.seed)){
     set.seed(set.seed)
-    
+
     SNN_igraph <- scran::buildKNNGraph(
-      data.use, 
-      k = k.param, 
+      data.use,
+      k = k.param,
       transposed = TRUE)
     snn.matrix <- similarity(
-      SNN_igraph, 
+      SNN_igraph,
       method = "jaccard")
-    
+
     snn.matrix[snn.matrix < 1/15] <- 0
     rownames(x = snn.matrix) <- rownames(x = data.use)
     colnames(x = snn.matrix) <- rownames(x = data.use)
-    
+
     snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
     return(snn.graph)
   }
 }
-
-
-
 
 # #' Cluster Determination
 # #'
@@ -305,21 +295,19 @@ getSNN <- function(data.use,
 # #'@param SNN a matrix of shared nearest neighbors (output from getSNN)
 # #'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
 # #'@param random.seed Seed of the random number generator.
-# 
+#
 # #'@importFrom NetworkToolbox louvain
 # getLouvain <- function(SNN, resolution = 1, random.seed = 0){
 #   if (!is.numeric(set.seed)){
-#     louvain_clusts <- louvain(SNN, gamma = resolution)  
+#     louvain_clusts <- louvain(SNN, gamma = resolution)
 #     idents <- louvain_clusts$community
 #     return(idents)
 #   }  else if (is.numeric(set.seed)){
 #     set.seed(set.seed)
-#     
-#     louvain_clusts <- louvain(SNN, gamma = resolution)  
+#
+#     louvain_clusts <- louvain(SNN, gamma = resolution)
 #     idents <- louvain_clusts$community
 #     return(idents)
 #   }
-#   
-# }  
-
-
+#
+# }

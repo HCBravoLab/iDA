@@ -2,7 +2,7 @@
 #'
 #'  Takes scaled data and iterates between clustering using the Louvain community detection method and embedding in LDA space, then recluster in
 #'  the LDA transformed data space.
-#'  
+#'
 #' @param data.use (data.frame) A dataframe of scaled data to find embedding for. (sample x feature)
 #' @param scaled (boolean) An indicator of if the data has already been normalized and scaled.
 #' @param var.Features Which method to use when finding variable features
@@ -21,14 +21,13 @@
 #' within each cluster)
 #' @param set.seed (numeric or FALSE) seed random number generator before building KNN graph. (passed to [`getSNN`])
 #' @param c.param (numeric) Defines the number of desired clusters to be found in the embedding
-#' @import irlba 
+#'
+#' @import irlba
 #' @import igraph
 #' @import plyr
 #' @return n number of dataframes for each cluster's data
 #'
 #'@export
-#'
-
 iDA_core <- function(data.use,
                      NormCounts = NULL, 
                      scaled = FALSE,
@@ -43,17 +42,18 @@ iDA_core <- function(data.use,
                      set.seed = FALSE, 
                      c.param = NULL
 ){
-  
+
  # if (scaled == FALSE){
     #normalize data by dividing by the sum of cell feature counts and then multiplying the cell counts by 10000
   #  data.use.norm <- Matrix::t((Matrix::t(data.use)/ Matrix::colSums(data.use))* 10000)
    # data.use.norm <- log1p(data.use.norm)
-    
+
     #scale data with max 10
     #data.use.scaled <- scale(data.use.norm)
 #  }
 
   #find variable features
+
   #  svd_time <- 0 
     if (var.Features == "scran") {
       stats <- scran::modelGeneVar(NormCounts)
@@ -135,43 +135,43 @@ iDA_core <- function(data.use,
     message(paste0("iteration ", i))
     message(paste0("concordance: ", concordance))
  
+
     #merge data with cluster
     currentcluster <- as.data.frame(clusters[,i + 1])
     #rownames(currentcluster) <- rownames(clusters)
     merged <- merge(currentcluster, t(var_data), by = 0)
-    
+
     #split by cluster
     splitclusters <- split_clusters(merged, merged[,2])
-    
+
     #calculate within cluster scatter matrix
     Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
- 
+
     #calculate between cluster scatter matrix
     Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-    
+
     #Sw-1 %*% Sb
     #   start_svd = Sys.time()
     eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
     #   end_svd = Sys.time()
-    
+
     #   svd_time = svd_time + (end_svd - start_svd)
-    
-    
+
     #       if (reduction.type == "LDA") {
     #         #calculate within cluster scatter matrix
     #           Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
-    # 
+    #
     #         #calculate between cluster scatter matrix
     #           Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-    # 
+    #
     #         #Sw-1 %*% Sb
-    #           
+    #
     # start_svd = Sys.time()
     #           eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
     # end_svd = Sys.time()
-    # 
+    #
     # svd_time = svd_time + (end_svd - start_svd)
-    
+
     # } else if (reduction.type == "QDA") {
     #   Sw = withinclass_scattermatrix_QDA(splitclusters = splitclusters, diag = diag)
     #   Sb = betweenclass_scatter_matrix(splitclusters = splitclusters)
@@ -183,18 +183,16 @@ iDA_core <- function(data.use,
     #   }
     #   eigenvecs = as.matrix(invSwSb, ncol = length(Sw))
     # }
-    
+
     #transform data
     eigenvectransformed <- t(var_data) %*% eigenvecs[[1]]
 
     #calculate SNN matrix for top LDs
     #start_louvain = Sys.time()
-    
     snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
-    
     #cluster
     walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
-    
+  
     
     #pick highest modularity 
     if (is.null(c.param)){
@@ -211,7 +209,7 @@ iDA_core <- function(data.use,
       stop("Invalid c.param")
     }
   
-    
+ 
     #concordance
     counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
     splitcounts <- split(counts , f = as.factor(counts[,1]))
@@ -220,24 +218,22 @@ iDA_core <- function(data.use,
       maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
     }  
     concordance <- sum(maxsplit)/dim(data.use)[2]
-    
-    
+
     #end_louvain = Sys.time()
-    
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
   }
   
   geneweights <- eigenvecs[[1]]
   stdev <- eigenvecs[[2]]
+
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
-  
+
   rownames(eigenvectransformed) <- rownames(transformed)
   colnames(eigenvectransformed) <- paste("LD", 1:dim(eigenvectransformed)[2], sep = "")
-  
+
   message(paste0("final concordance: "))
   message(paste0(concordance))
   return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features, stdev))
 }
-
