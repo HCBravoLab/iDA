@@ -99,13 +99,13 @@ iDA_core <- function(data.use,
 
   #pick highest modularity
     if (is.null(c.param)){
-    modularity <- c(0)
-    for (i in 2:15){
-      modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
-    }
-    
-    maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-    clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      modularity <- c(0)
+      for (i in 2:15){
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+      }
+      
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
     } else if (is.numeric(c.param)) {
       maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
       clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
@@ -185,8 +185,8 @@ iDA_core <- function(data.use,
     # }
     
     #transform data
-    eigenvectransformed <- t(var_data) %*% eigenvecs
-    
+    eigenvectransformed <- t(var_data) %*% eigenvecs[[1]]
+
     #calculate SNN matrix for top LDs
     #start_louvain = Sys.time()
     
@@ -228,8 +228,8 @@ iDA_core <- function(data.use,
     i = i + 1
   }
   
-  geneweights <- eigenvecs
-  
+  geneweights <- eigenvecs[[1]]
+  stdev <- eigenvecs[[2]]
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
   
@@ -238,6 +238,6 @@ iDA_core <- function(data.use,
   
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features))
+  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features, stdev))
 }
 
