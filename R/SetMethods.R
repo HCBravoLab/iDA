@@ -79,7 +79,7 @@ setMethod("iDA", "SingleCellExperiment",
 
 setMethod("iDA", "Seurat",
           function(object, assay, ...) {
-  
+
             if (length(object[[assay]]@scale.data) == 0){
               object <- NormalizeData(object, normalization.method = "LogNormalize", scale.factor = 10000)
               all.genes <- rownames(object)
@@ -100,6 +100,7 @@ setMethod("iDA", "Seurat",
                                                     assay = assay)
          
             object@meta.data[["iDA_clust"]] <- iDA_seurat[[1]]
+            object@reductions$iDA@stdev <- iDA_seurat[[5]]
             return(object)
           })
 
