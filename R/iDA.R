@@ -40,7 +40,8 @@ iDA_core <- function(data.use,
                      dims.use = 10,
                      diag = TRUE, 
                      set.seed = FALSE, 
-                     c.param = NULL
+                     c.param = NULL,
+                     cluster.method = "walktrap"
 ){
 
  # if (scaled == FALSE){
@@ -85,32 +86,39 @@ iDA_core <- function(data.use,
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
   #start_louvain <- Sys.time()
-    snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
 
   #cluster
-    if(!is.numeric(set.seed)){
-      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
-    } else if (is.numeric(set.seed)){
-      set.seed(set.seed)
-      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
-    }
-
-  
-
-  #pick highest modularity
-    if (is.null(c.param)){
-      modularity <- c(0)
-      for (i in 2:15){
-        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
-      }
+    if(cluster.method == "louvain") {
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       
-      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
-    } else if (is.numeric(c.param)) {
-      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
-      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+    } else if (cluster.method == "kmeans"){
+      kmeansclusters <- kmeans(transformed, centers = c.param)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = kmeansclusters$cluster)
+    
     } else {
-      stop("Invalid c.param")
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      if(!is.numeric(set.seed)){
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+      } else if (is.numeric(set.seed)){
+        set.seed(set.seed)
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+      }
+    
+    #pick highest modularity
+      if (is.null(c.param)){
+        modularity <- c(0)
+        for (i in 2:15){
+          modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+        }
+        
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+        clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      } else if (is.numeric(c.param)) {
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+        clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      } else {
+        stop("Invalid c.param")
+      }
     }
     
     #end_louvain <- Sys.time()
@@ -188,25 +196,34 @@ iDA_core <- function(data.use,
     eigenvectransformed <- t(var_data) %*% eigenvecs[[1]]
 
     #calculate SNN matrix for top LDs
-    #start_louvain = Sys.time()
-    snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
-    #cluster
-    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
-  
     
-    #pick highest modularity 
-    if (is.null(c.param)){
-      modularity <- c(0)
-      for (j in 2:15){
-        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
-      }
-      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-      clusters <- cbind(clusters, currentclust = maxmodclust)
-    } else if (is.numeric(c.param)) {
-      maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
-      clusters <- cbind(clusters, currentclust = maxmodclust)
+    
+    #start_louvain = Sys.time()
+    if (cluster.method == "louvain") {
+      
+    } else if (cluster.method == "kmeans"){
+      kmeansclusters <- kmeans(eigenvectransformed, centers = c.param)
+      clusters <- cbind(clusters, currentclust = kmeansclusters$cluster)
+      
     } else {
-      stop("Invalid c.param")
+      snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      #cluster
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
+
+      #pick highest modularity 
+      if (is.null(c.param)){
+        modularity <- c(0)
+        for (j in 2:15){
+          modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+        }
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+        clusters <- cbind(clusters, currentclust = maxmodclust)
+      } else if (is.numeric(c.param)) {
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+        clusters <- cbind(clusters, currentclust = maxmodclust)
+      } else {
+        stop("Invalid c.param")
+      }
     }
   
  
