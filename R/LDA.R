@@ -284,30 +284,33 @@ getSNN <- function(data.use,
   }
 }
 
-# #' Cluster Determination
-# #'
-# #' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
-# #' optimization based clustering algorithm. Optimize the modularity function to
-# #' determine clusters. For a full description of the algorithms, see Waltman and
-# #' van Eck (2013) \emph{The European Physical Journal B}.
-# #'
-# #'
-# #'@param SNN a matrix of shared nearest neighbors (output from getSNN)
-# #'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
-# #'@param random.seed Seed of the random number generator.
-#
-# #'@importFrom NetworkToolbox louvain
-# getLouvain <- function(SNN, resolution = 1, random.seed = 0){
-#   if (!is.numeric(set.seed)){
-#     louvain_clusts <- louvain(SNN, gamma = resolution)
-#     idents <- louvain_clusts$community
-#     return(idents)
-#   }  else if (is.numeric(set.seed)){
-#     set.seed(set.seed)
-#
-#     louvain_clusts <- louvain(SNN, gamma = resolution)
-#     idents <- louvain_clusts$community
-#     return(idents)
-#   }
-#
-# }
+#' Cluster Determination
+#'
+#' Identify clusters of cells by a shared nearest neighbor (SNN) modularity
+#' optimization based clustering algorithm. Optimize the modularity function to
+#' determine clusters. For a full description of the algorithms, see Waltman and
+#' van Eck (2013) \emph{The European Physical Journal B}.
+#'
+#'
+#'@param SNN a matrix of shared nearest neighbors (output from getSNN)
+#'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
+#'@param set.seed Seed of the random number generator.
+
+#'@importFrom NetworkToolbox louvain
+getLouvain <- function(SNN, set.seed = set.seed){
+   if (!is.numeric(set.seed)){
+     #louvain_clusts <- NetworkToolbox::louvain(A = SNN, gamma = resolution)
+     #idents <- louvain_clusts$community
+     louvain_clusters <- cluster_louvain(SNN)
+     idents <- louvain_clusters$membership
+    return(idents)
+   } else if (is.numeric(set.seed)){
+     set.seed(set.seed)
+     #louvain_clusts <- louvain(SNN, gamma = resolution)
+     #idents <- louvain_clusts$community
+     louvain_clusters <- cluster_louvain(SNN)
+     idents <- louvain_clusters$membership
+     return(idents)
+   }
+ }
+
