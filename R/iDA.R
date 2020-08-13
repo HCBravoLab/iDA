@@ -90,6 +90,8 @@ iDA_core <- function(data.use,
   #cluster
     if(cluster.method == "louvain") {
       snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      louvainClusters <- getLouvain(SNN = snn, set.seed = set.seed)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = louvainClusters)
       
     } else if (cluster.method == "kmeans"){
       kmeansclusters <- kmeans(transformed, centers = c.param)
@@ -200,6 +202,9 @@ iDA_core <- function(data.use,
     
     #start_louvain = Sys.time()
     if (cluster.method == "louvain") {
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      louvainClusters <- getLouvain(SNN = as.matrix(snn), set.seed = set.seed)
+      clusters <- cbind(clusters, currentclust = louvainClusters)
       
     } else if (cluster.method == "kmeans"){
       kmeansclusters <- kmeans(eigenvectransformed, centers = c.param)
