@@ -28,6 +28,7 @@
 #' @return n number of dataframes for each cluster's data
 #'
 #'@export
+
 iDA_core <- function(data.use,
                      NormCounts = NULL, 
                      scaled = FALSE,
@@ -67,6 +68,7 @@ iDA_core <- function(data.use,
     } else if (var.Features == "disp") {
       var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
     }
+
 
   #calculate svd for covariance matrix of variable_features
   #start_svd <- Sys.time()
@@ -129,15 +131,15 @@ iDA_core <- function(data.use,
     rownames(clusters) <- rownames(transformed)
   
   #concordance
-  counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
-  splitcounts <- split(counts , f = as.factor(counts[,1]))
-  maxsplit <- c()
-  for (j in 1:length(splitcounts))  {
-    maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
-  }  
-  concordance <- sum(maxsplit)/dim(data.use)[2]
+  #counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
+  #splitcounts <- split(counts , f = as.factor(counts[,1]))
+  #maxsplit <- c()
+  #for (j in 1:length(splitcounts))  {
+  #  maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
+  #}  
+  #concordance <- sum(maxsplit)/dim(data.use)[2]
 
-  
+  concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
   
   #start iterations
   i = 1        
@@ -202,14 +204,14 @@ iDA_core <- function(data.use,
     
     #start_louvain = Sys.time()
     if (cluster.method == "louvain") {
-      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      snn <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       louvainClusters <- getLouvain(SNN = as.matrix(snn), set.seed = set.seed)
       clusters <- cbind(clusters, currentclust = louvainClusters)
       
     } else if (cluster.method == "kmeans"){
       kmeansclusters <- kmeans(eigenvectransformed, centers = c.param)
       clusters <- cbind(clusters, currentclust = kmeansclusters$cluster)
-      
+
     } else {
       snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       #cluster
@@ -219,7 +221,7 @@ iDA_core <- function(data.use,
       if (is.null(c.param)){
         modularity <- c(0)
         for (j in 2:15){
-          modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+          modularity <- c(modularity,  modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
         }
         maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
         clusters <- cbind(clusters, currentclust = maxmodclust)
@@ -230,17 +232,17 @@ iDA_core <- function(data.use,
         stop("Invalid c.param")
       }
     }
-  
- 
-    #concordance
-    counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
-    splitcounts <- split(counts , f = as.factor(counts[,1]))
-    maxsplit <- c()
-    for (j in 1:length(splitcounts))  {
-      maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
-    }  
-    concordance <- sum(maxsplit)/dim(data.use)[2]
 
+    #concordance
+    #counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
+    #splitcounts <- split(counts , f = as.factor(counts[,1]))
+    #maxsplit <- c()
+    #for (j in 1:length(splitcounts))  {
+    #  maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
+    #}  
+    #concordance <- sum(maxsplit)/dim(data.use)[2]
+    
+    concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
     #end_louvain = Sys.time()
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
@@ -257,5 +259,5 @@ iDA_core <- function(data.use,
 
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features, stdev))
+  return(list(clusters[,(dim(clusters)[2])], eigenvectransformed, geneweights, var.features, stdev))
 }
