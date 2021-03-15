@@ -65,7 +65,11 @@ iDA_core <- function(data.use,
       }
 
     } else if (var.Features == "disp") {
-      var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+      if (is.null(NormCounts)) {
+        # variance stabilizing transformation using Deseq2
+        NormCounts <- varianceStabilizingTransformation(counts)
+      }
+      var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
     }
 
   #calculate svd for covariance matrix of variable_features

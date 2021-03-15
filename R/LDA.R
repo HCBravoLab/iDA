@@ -12,13 +12,13 @@
 #'
 #' @return (character) a list of row names with high dispersion rows
 #' @export
-VariableGenes <- function(data.use,
+VariableGenes <- function(NormCounts,
                           dispersion.cutoff,
                           mean.low.cutoff,
                           mean.high.cutoff) {
   #calculate logged means and VMR
-  ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
-  dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
+  ExpMeans <-  apply(NormCounts, 1, mean)
+  dispersions <- apply(NormCounts, 1, var)
 
   names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
   dispersions[is.na(x = dispersions)] <- 0
