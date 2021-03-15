@@ -196,7 +196,7 @@ decomposesvd <- function(withinclust_sc_mat,
     svd <- svd(solve(withinclust_sc_mat) %*% betweenclust_sc_mat, nu)
     top_eigenvectors <- svd$u[,1:nu]
     top_eigenvalues <- svd$d[1:nu]
-    return(list(top_eigenvectors, top_eigenvalues))
+    return(list(eigenvecs = top_eigenvectors, eigenvalues = top_eigenvalues))
   }
 }
 

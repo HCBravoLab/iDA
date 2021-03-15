@@ -54,24 +54,23 @@ iDA_core <- function(data.use,
 #  }
 
   #find variable features
-
   #  svd_time <- 0 
-    if (var.Features == "scran") {
-      stats <- scran::modelGeneVar(NormCounts)
-      if (dim(data.use)[1] < 3000){
-        var.features <- rownames(data.use)
-      } else {
-        var.features <- scran::getTopHVGs(stats, n = 3000)
-      }
-
-    } else if (var.Features == "disp") {
-      if (is.null(NormCounts)) {
-        # variance stabilizing transformation using Deseq2
-        NormCounts <- varianceStabilizingTransformation(counts)
-      }
-      var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+  if (var.Features == "scran") {
+    stats <- scran::modelGeneVar(NormCounts)
+    if (dim(data.use)[1] < 3000){
+      var.features <- rownames(data.use)
+    } else {
+      var.features <- scran::getTopHVGs(stats, n = 3000)
     }
-
+    
+  } else if (var.Features == "disp") {
+    if (is.null(NormCounts)) {
+      # variance stabilizing transformation using Deseq2
+      NormCounts <- varianceStabilizingTransformation(data.use)
+    }
+    var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+  }
+  
   #calculate svd for covariance matrix of variable_features
   #start_svd <- Sys.time()
   var_data <- data.use[var.features,]
@@ -87,22 +86,25 @@ iDA_core <- function(data.use,
   transformed <- svd$v
   rownames(transformed) <- colnames(var_data)
   
-  
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
   #start_louvain <- Sys.time()
-  
   snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
   
   #cluster
-  walktrapClusters <- igraph::cluster_walktrap(snn)
+  if(!is.numeric(set.seed)){
+    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+  } else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+  }
   
   
-  #pick highet modularity 
-  modularity <- c()
-  for (i in 1:15){
-    modularity <- c(modularity,  modularity(snn, igraph::cut_at(walktrapClusters, n = i)))
-    
+  
+  #pick highest modularity 
+  modularity <- c(0)
+  for (i in 2:15){
+    modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
   }
   
   maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
@@ -113,12 +115,14 @@ iDA_core <- function(data.use,
   
   rownames(clusters) <- rownames(transformed)
   
+  #concordance
+  concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]])
+  
+  
   
   #start iterations
-  i = 1
-  while(sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1] < .98) {
-    concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]])
-    #sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
+  i = 1        
+  while(concordance < .98) {
     message(paste0("iteration ", i))
     message(paste0("concordance: ", concordance))
     
@@ -138,7 +142,7 @@ iDA_core <- function(data.use,
     
     #Sw-1 %*% Sb
     #   start_svd = Sys.time()
-    eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
+    eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)[["eigenvecs"]]
     #   end_svd = Sys.time()
     
     #   svd_time = svd_time + (end_svd - start_svd)
@@ -184,13 +188,16 @@ iDA_core <- function(data.use,
     
     
     #pick highest modularity 
-    modularity = c()
-    for (j in 1:15){
-      modularity <- c(modularity, modularity(snn_transformed, igraph::cut_at(walktrapClusters, n = j)))
+    modularity = c(0)
+    for (j in 2:15){
+      modularity <- c(modularity, modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
     }
     
     maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
     clusters <- cbind(clusters, maxmodclust)
+    
+    #concordance
+    concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]])
     
     
     #end_louvain = Sys.time()
@@ -198,8 +205,8 @@ iDA_core <- function(data.use,
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
   }
-  concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]]) #sum(clusters[,dim(clusters)[2]-1] == clusters[,dim(clusters)[2]])/dim(clusters)[1]
-  geneweights <- eigenvecs
+  
+  geneweights <- as.data.frame(eigenvecs)
   
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
@@ -211,3 +218,4 @@ iDA_core <- function(data.use,
   message(paste0(concordance))
   return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features))
 }
+
