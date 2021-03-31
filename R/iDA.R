@@ -55,36 +55,39 @@ iDA_core <- function(data.use,
 #  }
 
   #find variable features
-
   #  svd_time <- 0 
-    if (var.Features == "scran") {
-      stats <- scran::modelGeneVar(NormCounts)
-      if (dim(data.use)[1] < 3000){
-        var.features <- rownames(data.use)
-      } else {
-        var.features <- scran::getTopHVGs(stats, n = 3000)
-      }
-
-    } else if (var.Features == "disp") {
-      var.features <- VariableGenes(data.use, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+  if (var.Features == "scran") {
+    stats <- scran::modelGeneVar(NormCounts)
+    if (dim(data.use)[1] < 3000){
+      var.features <- rownames(data.use)
+    } else {
+      var.features <- scran::getTopHVGs(stats, n = 3000)
     }
-
-
+    
+  } else if (var.Features == "disp") {
+    if (is.null(NormCounts)) {
+      # variance stabilizing transformation using Deseq2
+      NormCounts <- varianceStabilizingTransformation(data.use)
+    }
+    var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+  }
+  
+  
   #calculate svd for covariance matrix of variable_features
   #start_svd <- Sys.time()
-    var_data <- data.use[var.features,]
-    if(!is.numeric(set.seed)){
-      svd <- svdr(as.matrix(var_data), k = dims.use)
-    } else if (is.numeric(set.seed)){
-      set.seed(set.seed)
-      svd <- svdr(as.matrix(var_data), k = dims.use)
-    }
-    #end_svd <- Sys.time()
-    #svd_time <- svd_time + (end_svd - start_svd)
+  var_data <- data.use[var.features,]
+  if(!is.numeric(set.seed)){
+    svd <- svdr(as.matrix(var_data), k = dims.use)
+  } else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    svd <- svdr(as.matrix(var_data), k = dims.use)
+  }
+  #end_svd <- Sys.time()
+  #svd_time <- svd_time + (end_svd - start_svd)
   #transform data
-    transformed <- svd$v
-    rownames(transformed) <- colnames(var_data)
-    
+  transformed <- svd$v
+  rownames(transformed) <- colnames(var_data)
+  
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
   #start_louvain <- Sys.time()
@@ -99,7 +102,7 @@ iDA_core <- function(data.use,
       kmeansclusters <- kmeans(transformed, centers = c.param)
       clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = kmeansclusters$cluster)
     
-    } else {
+    } else if (cluster.method == "walktrap"){
       snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       if(!is.numeric(set.seed)){
         walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
@@ -130,60 +133,53 @@ iDA_core <- function(data.use,
     
     rownames(clusters) <- rownames(transformed)
   
-  #concordance
-  #counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
-  #splitcounts <- split(counts , f = as.factor(counts[,1]))
-  #maxsplit <- c()
-  #for (j in 1:length(splitcounts))  {
-  #  maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
-  #}  
-  #concordance <- sum(maxsplit)/dim(data.use)[2]
 
   concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+
   
   #start iterations
   i = 1        
   while(concordance < .98) {
     message(paste0("iteration ", i))
     message(paste0("concordance: ", concordance))
- 
-
+    
     #merge data with cluster
     currentcluster <- as.data.frame(clusters[,i + 1])
     #rownames(currentcluster) <- rownames(clusters)
     merged <- merge(currentcluster, t(var_data), by = 0)
-
+    
     #split by cluster
     splitclusters <- split_clusters(merged, merged[,2])
-
+    
     #calculate within cluster scatter matrix
     Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
-
+    
     #calculate between cluster scatter matrix
     Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-
+    
     #Sw-1 %*% Sb
     #   start_svd = Sys.time()
-    eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
+    eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)[["eigenvecs"]]
     #   end_svd = Sys.time()
-
+    
     #   svd_time = svd_time + (end_svd - start_svd)
-
+    
+    
     #       if (reduction.type == "LDA") {
     #         #calculate within cluster scatter matrix
     #           Sw <- withinclass_scattermatrix_LDA(splitclusters = splitclusters, diag = diag)
-    #
+    # 
     #         #calculate between cluster scatter matrix
     #           Sb <- betweenclass_scatter_matrix(splitclusters = splitclusters)
-    #
+    # 
     #         #Sw-1 %*% Sb
-    #
+    #           
     # start_svd = Sys.time()
     #           eigenvecs <- decomposesvd(Sw, Sb, nu = length(splitclusters) - 1, set.seed = set.seed)
     # end_svd = Sys.time()
-    #
+    # 
     # svd_time = svd_time + (end_svd - start_svd)
-
+    
     # } else if (reduction.type == "QDA") {
     #   Sw = withinclass_scattermatrix_QDA(splitclusters = splitclusters, diag = diag)
     #   Sb = betweenclass_scatter_matrix(splitclusters = splitclusters)
@@ -195,14 +191,12 @@ iDA_core <- function(data.use,
     #   }
     #   eigenvecs = as.matrix(invSwSb, ncol = length(Sw))
     # }
-
+    
     #transform data
-    eigenvectransformed <- t(var_data) %*% eigenvecs[[1]]
-
+    eigenvectransformed <- t(var_data) %*% eigenvecs
+    
     #calculate SNN matrix for top LDs
-    
-    
-    #start_louvain = Sys.time()
+        
     if (cluster.method == "louvain") {
       snn <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       louvainClusters <- getLouvain(SNN = as.matrix(snn), set.seed = set.seed)
@@ -212,7 +206,7 @@ iDA_core <- function(data.use,
       kmeansclusters <- kmeans(eigenvectransformed, centers = c.param)
       clusters <- cbind(clusters, currentclust = kmeansclusters$cluster)
 
-    } else {
+    } else if (cluster.method == "walktrap"){
       snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
       #cluster
       walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
@@ -243,21 +237,24 @@ iDA_core <- function(data.use,
     #concordance <- sum(maxsplit)/dim(data.use)[2]
     
     concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+
     #end_louvain = Sys.time()
+    
     #louvain_time = louvain_time + (end_louvain - start_louvain)
     i = i + 1
   }
   
-  geneweights <- eigenvecs[[1]]
-  stdev <- eigenvecs[[2]]
-
+  geneweights <- as.data.frame(eigenvecs)
+  
   rownames(geneweights) <- var.features
   colnames(geneweights) <- paste("LD", 1:dim(geneweights)[2], sep = "")
-
+  
   rownames(eigenvectransformed) <- rownames(transformed)
   colnames(eigenvectransformed) <- paste("LD", 1:dim(eigenvectransformed)[2], sep = "")
-
+  
   message(paste0("final concordance: "))
   message(paste0(concordance))
   return(list(clusters[,(dim(clusters)[2])], eigenvectransformed, geneweights, var.features, stdev))
+
 }
+
