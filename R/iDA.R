@@ -28,6 +28,7 @@
 #' @return n number of dataframes for each cluster's data
 #'
 #'@export
+
 iDA_core <- function(data.use,
                      NormCounts = NULL, 
                      scaled = FALSE,
@@ -71,6 +72,7 @@ iDA_core <- function(data.use,
     var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
   }
   
+  
   #calculate svd for covariance matrix of variable_features
   #start_svd <- Sys.time()
   var_data <- data.use[var.features,]
@@ -89,36 +91,51 @@ iDA_core <- function(data.use,
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
   #start_louvain <- Sys.time()
-  snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
-  
+
   #cluster
-  if(!is.numeric(set.seed)){
-    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
-  } else if (is.numeric(set.seed)){
-    set.seed(set.seed)
-    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
-  }
+    if(cluster.method == "louvain") {
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      louvainClusters <- getLouvain(SNN = snn, set.seed = set.seed)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = louvainClusters)
+      
+    } else if (cluster.method == "kmeans"){
+      kmeansclusters <- kmeans(transformed, centers = c.param)
+      clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = kmeansclusters$cluster)
+    
+    } else if (cluster.method == "walktrap"){
+      snn <- getSNN(data.use = transformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      if(!is.numeric(set.seed)){
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+      } else if (is.numeric(set.seed)){
+        set.seed(set.seed)
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+      }
+    
+    #pick highest modularity
+      if (is.null(c.param)){
+        modularity <- c(0)
+        for (i in 2:15){
+          modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+        }
+        
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+        clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      } else if (is.numeric(c.param)) {
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+        clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
+      } else {
+        stop("Invalid c.param")
+      }
+    }
+    
+    #end_louvain <- Sys.time()
+    #louvain_time = louvain_time + (end_louvain - start_louvain)
+    
+    rownames(clusters) <- rownames(transformed)
   
-  
-  
-  #pick highest modularity 
-  modularity <- c(0)
-  for (i in 2:15){
-    modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
-  }
-  
-  maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-  clusters <- cbind(start = rep(1,dim(transformed)[1]), currentclust = maxmodclust)
-  
-  #end_louvain <- Sys.time()
-  #louvain_time = louvain_time + (end_louvain - start_louvain)
-  
-  rownames(clusters) <- rownames(transformed)
-  
-  #concordance
-  concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]])
-  
-  
+
+  concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+
   
   #start iterations
   i = 1        
@@ -179,27 +196,48 @@ iDA_core <- function(data.use,
     eigenvectransformed <- t(var_data) %*% eigenvecs
     
     #calculate SNN matrix for top LDs
-    #start_louvain = Sys.time()
-    
-    snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
-    
-    #cluster
-    walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
-    
-    
-    #pick highest modularity 
-    modularity = c(0)
-    for (j in 2:15){
-      modularity <- c(modularity, modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+        
+    if (cluster.method == "louvain") {
+      snn <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      louvainClusters <- getLouvain(SNN = as.matrix(snn), set.seed = set.seed)
+      clusters <- cbind(clusters, currentclust = louvainClusters)
+      
+    } else if (cluster.method == "kmeans"){
+      kmeansclusters <- kmeans(eigenvectransformed, centers = c.param)
+      clusters <- cbind(clusters, currentclust = kmeansclusters$cluster)
+
+    } else if (cluster.method == "walktrap"){
+      snn_transformed <- getSNN(data.use = eigenvectransformed, set.seed = set.seed, k.param = k.param, prune.SNN = prune.SNN)
+      #cluster
+      walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn_transformed))
+
+      #pick highest modularity 
+      if (is.null(c.param)){
+        modularity <- c(0)
+        for (j in 2:15){
+          modularity <- c(modularity,  modularity(snn_transformed, suppressWarnings(igraph::cut_at(walktrapClusters, n = j))))
+        }
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
+        clusters <- cbind(clusters, currentclust = maxmodclust)
+      } else if (is.numeric(c.param)) {
+        maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+        clusters <- cbind(clusters, currentclust = maxmodclust)
+      } else {
+        stop("Invalid c.param")
+      }
     }
-    
-    maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity))
-    clusters <- cbind(clusters, maxmodclust)
-    
+
     #concordance
-    concordance <- adjustedRandIndex(clusters[,dim(clusters)[2]-1], clusters[,dim(clusters)[2]])
+    #counts <- plyr::count(clusters[,(dim(clusters)[2]-1):(dim(clusters)[2])])
+    #splitcounts <- split(counts , f = as.factor(counts[,1]))
+    #maxsplit <- c()
+    #for (j in 1:length(splitcounts))  {
+    #  maxsplit <- c(maxsplit, max(splitcounts[[j]]$freq))
+    #}  
+    #concordance <- sum(maxsplit)/dim(data.use)[2]
     
-    
+    concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+
     #end_louvain = Sys.time()
     
     #louvain_time = louvain_time + (end_louvain - start_louvain)
@@ -216,6 +254,7 @@ iDA_core <- function(data.use,
   
   message(paste0("final concordance: "))
   message(paste0(concordance))
-  return(list(clusters[,dim(clusters)[2]], eigenvectransformed, geneweights, var.features))
+  return(list(clusters[,(dim(clusters)[2])], eigenvectransformed, geneweights, var.features, stdev))
+
 }
 
