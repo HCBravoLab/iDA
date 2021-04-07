@@ -12,36 +12,38 @@
 #'
 #' @return (character) a list of row names with high dispersion rows
 #' @export
-VariableGenes <- function(NormCounts,
-                          dispersion.cutoff,
-                          mean.low.cutoff,
-                          mean.high.cutoff) {
+VariableGenes <- function(data.use, 
+                          dispersion.cutoff, 
+                          mean.low.cutoff, 
+                          mean.high.cutoff) 
+{
   #calculate logged means and VMR
-  ExpMeans <-  apply(NormCounts, 1, mean)
-  dispersions <- apply(NormCounts, 1, var)
-
-  names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = NormCounts)
+  ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
+  dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
+  
+  names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
   dispersions[is.na(x = dispersions)] <- 0
   ExpMeans[is.na(x = ExpMeans)] <- 0
-
+  
   #create bins to scale mean and dispersions
   num.bin <- 20
   data.x.bin <- cut(x = ExpMeans, breaks = num.bin)
-
+  
   names(x = data.x.bin) <- names(x = ExpMeans)
-
+  
   mean.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = mean)
   sd.y <- tapply(X = dispersions, INDEX = data.x.bin, FUN = sd)
-
+  
   #scale dispersions
   scaled.dispersions <- (dispersions - mean.y[as.numeric(x = data.x.bin)]) /
     sd.y[as.numeric(x = data.x.bin)]
   names(x = scaled.dispersions) <- names(x = ExpMeans)
-
+  
+  
   #find variable features
-  var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff &
-                                      ExpMeans > mean.low.cutoff &
-                                      ExpMeans < mean.high.cutoff])
+  var.features <- names(dispersions[scaled.dispersions > dispersion.cutoff & 
+                                      ExpMeans > mean.low.cutoff & 
+                                      ExpMeans < mean.high.cutoff])  
   return(var.features)
 }
 
