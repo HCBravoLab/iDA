@@ -56,11 +56,11 @@ iDA_core <- function(data.use,
   #  svd_time <- 0 
     if (var.Features == "scran") {
       stats <- scran::modelGeneVar(NormCounts)
-      if (dim(data.use)[1] < 3000){
-        var.features <- rownames(data.use)
-      } else {
+     # if (dim(data.use)[1] < 3000){
+      #  var.features <- rownames(data.use)
+      #} else {
         var.features <- scran::getTopHVGs(stats, n = 3000)
-      }
+      #}
 
     } else if (var.Features == "disp") {
       var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
