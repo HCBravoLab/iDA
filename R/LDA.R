@@ -20,7 +20,7 @@ VariableGenes <- function(NormCounts,
   ExpMeans <-  apply(NormCounts, 1, mean)
   dispersions <- apply(NormCounts, 1, var)
 
-  names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = data.use)
+  names(x = ExpMeans) <- names(x = dispersions) <- rownames(x = NormCounts)
   dispersions[is.na(x = dispersions)] <- 0
   ExpMeans[is.na(x = ExpMeans)] <- 0
 
