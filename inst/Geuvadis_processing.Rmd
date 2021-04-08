@@ -8,7 +8,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Load iDA
+# Load iDA
 ```{r}
 source("~/Desktop/iDA/R/iDA.R")
 source("~/Desktop/iDA/R/LDA.R")
@@ -16,20 +16,54 @@ library(iDA)
 ```
 
 
-#get Geuvadis (GVD) expression and phenotype data
-```{r}
-#this GVD table was made by doing varianceStabilizingTransformation(counts) of original GVD counts data
-GVD <- read.table("~/Desktop/iDA_files/datasets/Geuvadis/vst_counts_462unduped.txt")
+# Get Geuvadis count data and sample phenotype data
 
-#pheno data
-unduped_samples = read.csv("~/Desktop/iDA_files/datasets/Geuvadis/sampleids.csv")
+This dataset is the Geuvadis study, which completed bulk RNAseq on the 1000 genomes samples of known ancestral background. The raw data can be found here: 
+
+https://www.ebi.ac.uk/arrayexpress/experiments/E-GEUV-1/files/analysis_results/
+
+```{r}
+#read in data table
+GVD <- read.table("~/Desktop/iDA/GD660.GeneQuantCount.txt", header = TRUE, row.names = "Gene_Symbol")
+
+#subset columns for sample counts and remove duplicate samples
+GVD <- data.matrix(GVD[,4:663])
+samples <- colnames(GVD)
+samples <- strsplit(samples, ".", fixed = TRUE)
+samples <- do.call(rbind, samples)[,1]
+colnames(GVD) <- samples
+GVD <- GVD[, !duplicated(colnames(GVD))]
+
+#rounded count values because Array Express uses an EM algorithm for alignment and can result in non-integer counts. Deseq requires integer values
+GVD <- round(GVD)
+
 coldata <- read.csv("~/Desktop/iDA_files/datasets/Geuvadis/E-GEUV-3.sdrf.csv",  header = TRUE, row.names = "AssayName")
-coldata = coldata[unduped_samples$x,]
-coldata_pop_lab = coldata[,c(2,6)]
+coldata <- coldata[coldata$SampleName %in% samples,]
+rownames(coldata) <- coldata$SampleName
+
+#check if order of rows and cols are the same
+all(rownames(coldata) %in% colnames(GVD))
+all(rownames(coldata) == colnames(GVD))
+
+dds <- DESeqDataSetFromMatrix(countData = GVD,
+                              colData = coldata, design = ~ Population)
+
+#get rid of low count genes
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+#normalize counts
+dds <- estimateSizeFactors(dds)
+normalized_counts <- counts(dds, normalized=TRUE)
+
+#variance stabilizing transformation
+vsc_dds <- varianceStabilizingTransformation(dds, blind = TRUE)
+GVD <- assay(vsc_dds)
+
 ```
 
 
-#Run iDA on GVD data
+# Run iDA on GVD data
 ```{r}
 #run iDA
 GVD_iDA <- iDA_core(data.use = as.matrix(GVD), 
@@ -46,7 +80,7 @@ GVD_iDAembedding = cbind(GVD_iDAembedding, coldata_pop_lab[ rownames(GVD_iDAembe
 ```
 
 
-#PCA on GVD 
+# PCA on GVD 
 ```{r}
 #find same variable features
 var.features <- GVD_iDA[[4]]
