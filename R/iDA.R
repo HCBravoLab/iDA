@@ -136,7 +136,7 @@ iDA_core <- function(data.use,
   
   rownames(clusters) <- rownames(transformed)
   
-  concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+  concordance <- mclust::adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
   
   #start iterations
   i = 1        
@@ -197,7 +197,7 @@ iDA_core <- function(data.use,
       }
     }
     
-    concordance <- adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
+    concordance <- mclust::adjustedRandIndex(clusters[,(dim(clusters)[2]-1)], clusters[,(dim(clusters)[2])])
     
     #end_louvain = Sys.time()
     
