@@ -1,7 +1,7 @@
 ---
 title: "pbmc_pipeline"
 author: "Theresa Alexander"
-date: "1/9/2020"
+date: "`r Sys.Date()`"
 output:
   word_document: default
   pdf_document: default
@@ -11,18 +11,27 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Load iDA
+# Load packages
 ```{r}
-#install.packages("~/Desktop/iDA_singlecellexperiment/iDA", repos = NULL, type="source")
 library(ggplot2)
 library(devtools)
 library(scran)
 library(iDA)
 library(Seurat)
+library(clValid)
+library(caret)
+library(Rtsne)
+library(umap)
+```
 
 
 # Load the PBMC dataset
-pbmc.data <- Read10X(data.dir = "~/Downloads/filtered_gene_bc_matrices/hg19/")
+The 3k cell PBMC dataset can be downloaded from here:
+
+https://cf.10xgenomics.com/samples/cell/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz"
+
+```{r}
+pbmc.data <- Read10X(data.dir = "~/Desktop/iDA_bioc/data/filtered_gene_bc_matrices/hg19/")
 # Initialize the Seurat object with the raw (non-normalized data).
 pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k", min.cells = 3, min.features = 200)
 
@@ -31,77 +40,29 @@ pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent
 pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
 #all.genes <- rownames(pbmc)
 pbmc <- ScaleData(pbmc)
-
-
-#Cluster with Seurat
-#pbmc_pca <- FindNeighbors(pbmc, dims = 1:10)
-#pbmc_pca <- FindClusters(pbmc_pca, resolution = 1.3)
-
 ```
 
-#run iDA on the PBMC data
+# iDA
 ```{r}
 #run iDA
 pbmc <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE)
-#C(.20015, .86391, .9909)
 ```
 
 
-#k param robustness
+# PCA
 ```{r}
-pbmc_k5 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 5)
-pbmc_k6 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 6)
-pbmc_k7 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 7)
-pbmc_k8 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 8)
-pbmc_k9 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 9)
-pbmc_k10 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 10)
-pbmc_k11 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 11)
-pbmc_k12 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 12)
-pbmc_k13 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 13)
-pbmc_k14 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 14)
-pbmc_k15 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 15)
-pbmc_k16 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 16)
-pbmc_k17 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 17)
-pbmc_k18 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 18)
-pbmc_k19 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 19)
-pbmc_k20 <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE, k.param = 20)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#get PCA data
-```{r}
-var.features.pbmc <- iDA::VariableGenes(pbmc[["RNA"]]@scale.data, 
-                                   mean.low.cutoff = 0.1, 
-                                   mean.high.cutoff = 8, 
-                                   dispersion.cutoff = 1)
 pbmc <- RunPCA(pbmc, features = VariableFeatures(pbmc))
 ```
-
 
 ```{r}
 #iDA embedding and idents
 pbmc_iDA_ident = pbmc@meta.data$iDA_clust
 pbmc_iDAcellembedding = pbmc[["iDA"]]@cell.embeddings
-
 ```
 
-
-#PCA on PBMC
 ```{r}
 #embedding
-pbmc_PCAembedding = Embeddings(pbmc, reduction = "pca")[, 1:11]
+pbmc_PCAembedding = Embeddings(pbmc, reduction = "pca")[, 1:10]
 ```
 
 
@@ -133,8 +94,7 @@ Fstat_pbmc_iDA = c((iDATSS[1]-iDARSS[1])/iDARSS[1],
                        (sum(iDATSS[1:7])-sum(iDARSS[1:7]))/sum(iDARSS[1:7]),  
                        (sum(iDATSS[1:8])-sum(iDARSS[1:8]))/sum(iDARSS[1:8]),
                        (sum(iDATSS[1:9])-sum(iDARSS[1:9]))/sum(iDARSS[1:9]),
-                       (sum(iDATSS[1:10])-sum(iDARSS[1:10]))/sum(iDARSS[1:10]),
-                       (sum(iDATSS[1:11])-sum(iDARSS[1:11]))/sum(iDARSS[1:11]))
+                       (sum(iDATSS[1:10])-sum(iDARSS[1:10]))/sum(iDARSS[1:10]))
 
 R2_pbmc_iDA = c(1-(iDARSS[1]/iDATSS[1]), 
                        1-sum(iDARSS[1:2])/sum(iDATSS[1:2]), 
@@ -145,25 +105,24 @@ R2_pbmc_iDA = c(1-(iDARSS[1]/iDATSS[1]),
                        1-sum(iDARSS[1:7])/sum(iDATSS[1:7]),  
                        1-sum(iDARSS[1:8])/sum(iDATSS[1:8]),  
                        1-sum(iDARSS[1:9])/sum(iDATSS[1:9]),  
-                       1-sum(iDARSS[1:10])/sum(iDATSS[1:10]),  
-                       1-sum(iDARSS[1:11])/sum(iDATSS[1:11]))
+                       1-sum(iDARSS[1:10])/sum(iDATSS[1:10]))
 
 
 ```
 
-##PCA F-stat and R^2
+## PCA F-stat and R^2
 
 ```{r}
 #getting RSS for iDA across dimensions
 PCRSS = c()
-for (i in 1:dim(pbmc_iDAcellembedding)[2]) {
+for (i in 1:10) {
   PCRSS[i] = anova(lm(as.numeric(pbmc_PCAembedding[,i]) ~ as.factor(pbmc_iDA_ident)))[2,2]
 }
 
 
 #getting TSS for iDA across dimensions
 PCTSS = c()
-for (i in 1:dim(pbmc_iDAcellembedding)[2]) {
+for (i in 1:10) {
   PCTSS[i] = sum(anova(lm(as.numeric(pbmc_PCAembedding[,i]) ~ as.factor(pbmc_iDA_ident)))[,2])
 }
 
@@ -177,8 +136,7 @@ Fstat_pbmc_PCA = c((PCTSS[1]-PCRSS[1])/PCRSS[1],
                        (sum(PCTSS[1:7])-sum(PCRSS[1:7]))/sum(PCRSS[1:7]),  
                        (sum(PCTSS[1:8])-sum(PCRSS[1:8]))/sum(PCRSS[1:8]),  
                        (sum(PCTSS[1:9])-sum(PCRSS[1:9]))/sum(PCRSS[1:9]),  
-                       (sum(PCTSS[1:10])-sum(PCRSS[1:10]))/sum(PCRSS[1:10]),  
-                       (sum(PCTSS[1:11])-sum(PCRSS[1:11]))/sum(PCRSS[1:11]))
+                       (sum(PCTSS[1:10])-sum(PCRSS[1:10]))/sum(PCRSS[1:10]))
 
 
 R2_pbmc_PCA = c(1-(PCRSS[1]/PCTSS[1]), 
@@ -190,23 +148,22 @@ R2_pbmc_PCA = c(1-(PCRSS[1]/PCTSS[1]),
                        1-sum(PCRSS[1:7])/sum(PCTSS[1:7]),  
                        1-sum(PCRSS[1:8])/sum(PCTSS[1:8]),  
                        1-sum(PCRSS[1:9])/sum(PCTSS[1:9]),  
-                       1-sum(PCRSS[1:10])/sum(PCTSS[1:10]),  
-                       1-sum(PCRSS[1:11])/sum(PCTSS[1:11]))
+                       1-sum(PCRSS[1:10])/sum(PCTSS[1:10]))
 
 Fstat_pbmc = as.data.frame(cbind(Fstat_pbmc_iDA, Fstat_pbmc_PCA))
 R2_pbmc = as.data.frame(cbind(R2_pbmc_iDA, R2_pbmc_PCA))
 ```
 
 
-##plot F-stat and R^2
+## plot F-stat and R^2
 ```{r}
-ggplot(Fstat_pbmc, aes(x = as.factor(1:11))) + geom_point(aes(y = Fstat_pbmc_iDA,color = "iDA")) + geom_line(aes(x = 1:11, y = Fstat_pbmc_iDA, color = "iDA")) + geom_point(aes(y = Fstat_pbmc_PCA,color = "PCA")) + geom_line(aes(x = 1:11, y = Fstat_pbmc_PCA, color = "PCA"))  +  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + labs( x = "Dimension", y = "Cumulative F-statistic") + theme_classic()
+ggplot(Fstat_pbmc, aes(x = as.factor(1:10))) + geom_point(aes(y = Fstat_pbmc_iDA,color = "iDA")) + geom_line(aes(x = 1:10, y = Fstat_pbmc_iDA, color = "iDA")) + geom_point(aes(y = Fstat_pbmc_PCA,color = "PCA")) + geom_line(aes(x = 1:10, y = Fstat_pbmc_PCA, color = "PCA"))  +  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + labs( x = "Dimension", y = "Cumulative F-statistic") + theme_classic()
 
-ggplot(R2_pbmc, aes(x = as.factor(1:11))) + geom_point(aes(y = R2_pbmc_iDA,color = "iDA")) + geom_line(aes(x = 1:11, y = R2_pbmc_iDA, color = "iDA")) + geom_point(aes(y = R2_pbmc_PCA,color = "PCA")) + geom_line(aes(x = 1:11, y = R2_pbmc_PCA, color = "PCA"))  +  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + labs( x = "Dimension", y = "Cumulative" ~ R^2) + theme_classic()  
+ggplot(R2_pbmc, aes(x = as.factor(1:10))) + geom_point(aes(y = R2_pbmc_iDA,color = "iDA")) + geom_line(aes(x = 1:10, y = R2_pbmc_iDA, color = "iDA")) + geom_point(aes(y = R2_pbmc_PCA,color = "PCA")) + geom_line(aes(x = 1:10, y = R2_pbmc_PCA, color = "PCA"))  +  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + labs( x = "Dimension", y = "Cumulative" ~ R^2) + theme_classic()  
 
 ```
 
-#Do LD's separate clusters by expression of known markers?
+# Do LD's separate clusters by expression of known markers?
 ```{r}
 
 #markers CD14/LYZ: Monocytes
@@ -226,140 +183,115 @@ PPBPiDA = as.data.frame(cbind(pbmc_iDAcellembedding, pbmc[["RNA"]]@counts["PPBP"
 ```
 
 
-##plot markers versus LD weight
+## plot markers versus LD weight
 ```{r, include = FALSE}
 #monocytes
 
-  ggplot(data = CD14iDA, aes(x = pbmc_iDAcellembedding[,7], y = pbmc_Seurat@data["CD14",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
+  ggplot(data = CD14iDA, aes(x = pbmc_iDAcellembedding[,6], y = pbmc[["RNA"]]@data["CD14",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) + 
    theme_classic() +
-   xlab("LD7 Weight") + 
+   xlab("LD6 Weight") + 
    ylab("CD14 Expression") + 
    labs(color = "iDA Cluster Identity")
  
- ggplot(data = LYZiDA, aes(x = pbmc_iDAcellembedding[,7], y = pbmc_Seurat@data["LYZ",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
-   theme_classic() +xlab("LD7 Weight") + 
+ ggplot(data = LYZiDA, aes(x = pbmc_iDAcellembedding[,6], y = pbmc[["RNA"]]@data["LYZ",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) + 
+   theme_classic() + 
+   xlab("LD6 Weight") + 
    ylab("LYZ Expression") + 
    labs(color = "iDA Cluster Identity")
  
 #NK cells
- ggplot(data = GNLYiDA, aes(x = pbmc_iDAcellembedding[,3], y = pbmc_Seurat@data["GNLY",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
+ ggplot(data = GNLYiDA, aes(x = pbmc_iDAcellembedding[,3], y = pbmc[["RNA"]]@data["GNLY",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) + 
    xlab("LD3 Weight") + 
    ylab("GNLY Expression")  + 
    labs(color = "iDA Cluster Identity") + 
    theme_classic() 
+
  
-  ggplot(data = GNLYiDA, aes(x = pbmc_iDAcellembedding[,6], y = pbmc_Seurat@data["GNLY",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
-   xlab("LD6 Weight") + 
-   ylab("GNLY Expression")  + 
-   labs(color = "iDA Cluster Identity") + 
-   theme_classic() 
- 
- 
- ggplot(data = NKG7iDA, aes(x = pbmc_iDAcellembedding[,3], y = pbmc_Seurat@data["NKG7",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
+ ggplot(data = NKG7iDA, aes(x = pbmc_iDAcellembedding[,3], y = pbmc[["RNA"]]@data["NKG7",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) + 
    xlab("LD3 Weight") + 
    ylab("NKG7 Expression") + 
    labs(color = "iDA Cluster Identity") + 
    theme_classic()
  
-  ggplot(data = NKG7iDA, aes(x = pbmc_iDAcellembedding[,6], y = pbmc_Seurat@data["NKG7",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
-   xlab("LD6 Weight") + 
-   ylab("NKG7 Expression") + 
-   labs(color = "iDA Cluster Identity") + 
-   theme_classic()
-# 
 # #B-cells
- ggplot(data = MS4A1iDA, aes(x = pbmc_iDAcellembedding[,5], y = pbmc_Seurat@data["MS4A1",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) +  
+ ggplot(data = MS4A1iDA, aes(x = pbmc_iDAcellembedding[,5], y = pbmc[["RNA"]]@data["MS4A1",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) +  
    theme_classic() +
    xlab("LD5 Weight") + 
    ylab("MS4A1 Expression") + 
    labs(color = "iDA Cluster Identity") 
 # 
-# #Dendritic cells
- ggplot(data = PPBPiDA, aes(x = pbmc_iDAcellembedding[,1], y = pbmc_Seurat@data["PPBP",])) + 
-   geom_point(aes(color = as.factor(pbmc_iDA_ident)), size = .6) + 
+# #Platelets
+ ggplot(data = PPBPiDA, aes(x = pbmc_iDAcellembedding[,1], y = pbmc[["RNA"]]@data["PPBP",])) + 
+   geom_point(aes(color = as.factor(pbmc_iDA_ident))) + 
    theme_classic() + 
    labs(color = "iDA Cluster Identity") + 
    xlab("LD1 Weight") + 
    ylab("PPBP Expression")
  
- 
- 
- 
-
-
 ```
 
 
-##difference in scaled expression for cell types for each marker
+## difference in scaled expression for cell types for each marker
 ```{r}
 #cluster 1 = monocytes
 pbmc_CD14 = pbmc[["RNA"]]@scale.data["CD14",]
   mean(pbmc_CD14[pbmc_iDA_ident == 1])
   mean(pbmc_CD14[pbmc_iDA_ident != 1])
 
-pbmc_LYZ = pbmc_Seurat@scale.data["LYZ",]
+pbmc_LYZ = pbmc[["RNA"]]@scale.data["LYZ",]
   mean(pbmc_LYZ[pbmc_iDA_ident == 1])
   mean(pbmc_LYZ[pbmc_iDA_ident != 1])
 
   
 #cluster 8 = NK cells
-pbmc_GNLY = pbmc_Seurat@scale.data["GNLY",]
-  mean(pbmc_GNLY[pbmc_iDA_ident == 8])
-  mean(pbmc_GNLY[pbmc_iDA_ident != 8])
+pbmc_GNLY = pbmc[["RNA"]]@scale.data["GNLY",]
+  mean(pbmc_GNLY[pbmc_iDA_ident == 6])
+  mean(pbmc_GNLY[pbmc_iDA_ident != 6])
 
-pbmc_NKG7 = pbmc_Seurat@scale.data["NKG7",]
-  mean(pbmc_NKG7[pbmc_iDA_ident == 8])
-  mean(pbmc_NKG7[pbmc_iDA_ident != 8])
+pbmc_NKG7 = pbmc[["RNA"]]@scale.data["NKG7",]
+  mean(pbmc_NKG7[pbmc_iDA_ident == 6])
+  mean(pbmc_NKG7[pbmc_iDA_ident != 6])
 
 
 #cluster 5 = bcells
-pbmc_MS4A1 = pbmc_Seurat@scale.data["MS4A1",]
+pbmc_MS4A1 = pbmc[["RNA"]]@scale.data["MS4A1",]
   mean(pbmc_MS4A1[pbmc_iDA_ident == 5])
   mean(pbmc_MS4A1[pbmc_iDA_ident != 5])
   
 
 #cluster 10 = dendritic cells
-pbmc_PPBP = pbmc_Seurat@scale.data["PPBP",]
-  mean(pbmc_PPBP[pbmc_iDA_ident == 10])
-  mean(pbmc_PPBP[pbmc_iDA_ident != 10])
+pbmc_PPBP = pbmc[["RNA"]]@scale.data["PPBP",]
+  mean(pbmc_PPBP[pbmc_iDA_ident == 9])
+  mean(pbmc_PPBP[pbmc_iDA_ident != 9])
 ```
 
-#Dunn index
+# Dunn index
 ```{r}
-library(clValid)
-library(caret)
 cellbygenePBMC = t(pbmc[["RNA"]]@scale.data)
 
 #distance matrix (takes awhile to compute)
 Dist <- dist(cellbygenePBMC,method="euclidean")
-# #Dist2 <- as.matrix(Dist)
-# Dist <- read.csv("~/Desktop/iDA_files/datasets/PBMC/PBMC_dist.csv")
-# 
+
 #Seurat clusters
- seurat_clusters <- Idents(pbmc)
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc)
+seurat_clusters <- Idents(pbmc)
 
 #iDA clusters
 iDAPBMC_clusters <- pbmc@meta.data$iDA_clust
 names(iDAPBMC_clusters) <- colnames(pbmc[["RNA"]]@counts)
 
-
 seuratclusts_Dunn = dunn(Dist, as.numeric(seurat_clusters))
 iDAclustsPBMC_Dunn = dunn(Dist, as.numeric(iDAPBMC_clusters))
 
-
 confusionMatrix(as.factor(iDAPBMC_clusters), reference = as.factor(as.numeric(seurat_clusters)))
 
-class(iDAPBMC_clusters)
-
-
-DIs = as.data.frame(c(poplabclusts_Dunn, iDAclustsGVD_Dunn))
+DIs = as.data.frame(c(seuratclusts_Dunn, iDAclustsPBMC_Dunn))
 rownames(DIs) <- c("Seurat Clusters", "iDA Clusters")
 colnames(DIs) <- "Dunn Index"
 
@@ -368,18 +300,16 @@ DIs
 
 
 
-
-
-#tSNE of iDA versus PCA embeddings
+# tSNE of iDA versus PCA embeddings
 ```{r}
 #tSNE for PCA and iDA
 #run tSNE for each reduction
   set.seed(10)
-  tsne_pca <- Rtsne(pbmc[["pca"]]@cell.embeddings[,1:11])
-  tsne_iDA <- Rtsne(pbmc[["iDA"]]@cell.embeddings[,1:11])
+  tsne_pca <- Rtsne(pbmc[["pca"]]@cell.embeddings[,1:10])
+  tsne_iDA <- Rtsne(pbmc[["iDA"]]@cell.embeddings[,1:8])
 
   #tSNE plots for each reduction
-    ggplot(as.data.frame(tsne_pca$Y), aes(x = tsne_pca$Y[,1], y = tsne_pca$Y[,2], color = as.factor(Idents(pbmc_pca)))) +
+    ggplot(as.data.frame(tsne_pca$Y), aes(x = tsne_pca$Y[,1], y = tsne_pca$Y[,2], color = as.factor(Idents(pbmc)))) +
       geom_point() + labs(color = "Seurat Clusters") + xlab("tSNE 1") + ylab("tSNE 2") + ggtitle("tSNE of PCA cell embeddings") +
       theme_classic()
     ggplot(as.data.frame(tsne_iDA$Y), aes(x = tsne_iDA$Y[,1], y = tsne_iDA$Y[,2], color = as.factor(pbmc_iDA_ident))) + 
@@ -387,24 +317,23 @@ DIs
       theme_classic()
 ```
 
-
-#UMAP of iDA versus PCA embeddings
+# UMAP of iDA versus PCA embeddings
 ```{r}
 #UMAP comparison of PCA versus iDA embedding
   #run UMAP for each reduction
     set.seed(10)
-    pbmc_pca <- RunUMAP(pbmc_pca, dims = 1:11)
+    UMAPpcapbmc <- umap(pbmc[["pca"]]@cell.embeddings[,1:10])
     
     set.seed(10)
-    pbmc_iDA <- RunUMAP(pbmc, reduction = "iDA", dims = 1:11)
-  
-  #set idents for the iDA embedding to label cells in DimPlot
-    Idents(pbmc_iDA) <- pbmc_iDA_ident
+    UMAPiDApbmc <- umap(pbmc[["iDA"]]@cell.embeddings[,1:8])
    
   #UMAP plots for each reduction
-    set.seed(10)
-    DimPlot(pbmc_pca, reduction = "umap") + labs(color = "Seurat clusters") + ggtitle("UMAP of PCA cell embeddings")
-    DimPlot(pbmc_iDA, reduction = "umap") + labs(color = "iDA clusters") + ggtitle("UMAP of iDA cell embeddings")
-
+    ggplot(as.data.frame(UMAPpcapbmc$layout), aes(x =UMAPpcapbmc$layout[,1], y = UMAPpcapbmc$layout[,2], color = as.factor(Idents(pbmc)))) +
+      geom_point() + labs(color = "Seurat Clusters") + xlab("UMAP 1") + ylab("UMAP 2") + ggtitle("UMAP of PCA cell embeddings") +
+      theme_classic()
+    
+      ggplot(as.data.frame(UMAPiDApbmc$layout), aes(x =UMAPiDApbmc$layout[,1], y = UMAPiDApbmc$layout[,2], color = as.factor(Idents(pbmc)))) +
+      geom_point() + labs(color = "iDA Clusters") + xlab("UMAP 1") + ylab("UMAP 2") + ggtitle("UMAP of iDA cell embeddings") +
+      theme_classic()
 ```
 
