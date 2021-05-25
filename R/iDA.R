@@ -95,7 +95,6 @@ iDA_core <- function(data.use,
   # transform data
   transformed <- svd$v
   rownames(transformed) <- colnames(var_data)
-<<<<<<< HEAD
   
   #calculate SNN matrix for top PC's
   #louvain_time <- 0
