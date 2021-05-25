@@ -17,9 +17,9 @@ VariableGenes <- function(NormCounts,
                           mean.low.cutoff,
                           mean.high.cutoff) {
   ## calculate logged means and VMR
-  ExpMeans <- apply(data.use, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
+  ExpMeans <- apply(NormCounts, 1, FUN = function(x) log(mean(exp(x) - 1) + 1))
   finite_idx <- is.finite(ExpMeans)
-  data.use <- data.use[finite_idx, ]
+  data.use <- NormCounts[finite_idx, ]
   ExpMeans <- ExpMeans[finite_idx]
   dispersions <- apply(data.use, 1, FUN = function(x) {log(var(exp(x) - 1) / mean( exp(x) - 1))})
   dispersions <- dispersions[finite_idx]

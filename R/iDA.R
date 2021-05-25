@@ -69,7 +69,7 @@ iDA_core <- function(data.use,
       ## variance stabilizing transformation using Deseq2
       NormCounts <- varianceStabilizingTransformation(data.use)
     }
-    var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)
+    var.features <- VariableGenes(NormCounts, dispersion.cutoff = dispersion.cutoff, mean.low.cutoff = mean.low.cutoff, mean.high.cutoff = mean.high.cutoff)[["var.features"]]
   } else {
     ## Use it all?
     message("Potentially spuriously using all data.")
