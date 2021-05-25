@@ -11,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Load packages
+#Load packages
 ```{r}
 library(ggplot2)
 library(devtools)
@@ -29,6 +29,7 @@ library(umap)
 The 3k cell PBMC dataset can be downloaded from here:
 
 https://cf.10xgenomics.com/samples/cell/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz"
+
 
 ```{r}
 pbmc.data <- Read10X(data.dir = "~/Desktop/iDA_bioc/data/filtered_gene_bc_matrices/hg19/")
@@ -54,12 +55,15 @@ pbmc <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE)
 pbmc <- RunPCA(pbmc, features = VariableFeatures(pbmc))
 ```
 
+
 ```{r}
 #iDA embedding and idents
 pbmc_iDA_ident = pbmc@meta.data$iDA_clust
 pbmc_iDAcellembedding = pbmc[["iDA"]]@cell.embeddings
 ```
 
+
+#PCA on PBMC
 ```{r}
 #embedding
 pbmc_PCAembedding = Embeddings(pbmc, reduction = "pca")[, 1:10]
@@ -110,7 +114,7 @@ R2_pbmc_iDA = c(1-(iDARSS[1]/iDATSS[1]),
 
 ```
 
-## PCA F-stat and R^2
+##PCA F-stat and R^2
 
 ```{r}
 #getting RSS for iDA across dimensions
@@ -155,7 +159,7 @@ R2_pbmc = as.data.frame(cbind(R2_pbmc_iDA, R2_pbmc_PCA))
 ```
 
 
-## plot F-stat and R^2
+##plot F-stat and R^2
 ```{r}
 ggplot(Fstat_pbmc, aes(x = as.factor(1:10))) + geom_point(aes(y = Fstat_pbmc_iDA,color = "iDA")) + geom_line(aes(x = 1:10, y = Fstat_pbmc_iDA, color = "iDA")) + geom_point(aes(y = Fstat_pbmc_PCA,color = "PCA")) + geom_line(aes(x = 1:10, y = Fstat_pbmc_PCA, color = "PCA"))  +  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + labs( x = "Dimension", y = "Cumulative F-statistic") + theme_classic()
 
@@ -163,7 +167,7 @@ ggplot(R2_pbmc, aes(x = as.factor(1:10))) + geom_point(aes(y = R2_pbmc_iDA,color
 
 ```
 
-# Do LD's separate clusters by expression of known markers?
+#Do LD's separate clusters by expression of known markers?
 ```{r}
 
 #markers CD14/LYZ: Monocytes
@@ -183,7 +187,7 @@ PPBPiDA = as.data.frame(cbind(pbmc_iDAcellembedding, pbmc[["RNA"]]@counts["PPBP"
 ```
 
 
-## plot markers versus LD weight
+##plot markers versus LD weight
 ```{r, include = FALSE}
 #monocytes
 
@@ -236,7 +240,7 @@ PPBPiDA = as.data.frame(cbind(pbmc_iDAcellembedding, pbmc[["RNA"]]@counts["PPBP"
 ```
 
 
-## difference in scaled expression for cell types for each marker
+##difference in scaled expression for cell types for each marker
 ```{r}
 #cluster 1 = monocytes
 pbmc_CD14 = pbmc[["RNA"]]@scale.data["CD14",]
@@ -270,7 +274,7 @@ pbmc_PPBP = pbmc[["RNA"]]@scale.data["PPBP",]
   mean(pbmc_PPBP[pbmc_iDA_ident != 9])
 ```
 
-# Dunn index
+#Dunn index
 ```{r}
 cellbygenePBMC = t(pbmc[["RNA"]]@scale.data)
 
@@ -300,7 +304,7 @@ DIs
 
 
 
-# tSNE of iDA versus PCA embeddings
+#tSNE of iDA versus PCA embeddings
 ```{r}
 #tSNE for PCA and iDA
 #run tSNE for each reduction
@@ -316,6 +320,7 @@ DIs
       geom_point() + labs(color = "iDA Clusters") + xlab("tSNE 1") + ylab("tSNE 2") + ggtitle("tSNE of iDA cell embeddings") +
       theme_classic()
 ```
+
 
 # UMAP of iDA versus PCA embeddings
 ```{r}
