@@ -1,0 +1,392 @@
+---
+title: "sce H1975 heterogenerity: 10x 5 Clusters"
+author: "Theresa Alexander"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    number_sections: yes
+    toc: yes
+---
+
+# Load Data
+The data can be downloaded from the sc_mixology repo here:
+
+https://github.com/LuyiTian/sc_mixology/blob/master/data/sincell_with_class.RData
+https://github.com/LuyiTian/sc_mixology/blob/master/data/sincell_with_class_5cl.RData
+
+```{r, message = FALSE}
+load("~/Desktop/iDA_bioc/data/sincell_with_class.RData")
+load("~/Desktop/iDA_bioc/data/sincell_with_class_5cl.RData")
+```
+
+# Packages
+```{r}
+library("scran")
+library("scater")
+library("igraph")
+library("Rtsne")
+library("stats")
+library("mclust")
+library("ggplot2")
+library("gridExtra")
+library("irlba")
+library("MASS")
+library("klaR")
+library("dplyr")
+```
+
+# Helper Functions
+```{r, include = FALSE}
+getSNN <- function(data.use,
+                   k.param = 10,
+                   prune.SNN = 1/15,
+                   set.seed = FALSE) {
+  data.use <- as.matrix(data.use)
+  n.obs <- nrow(x = data.use)
+  
+  if (n.obs < k.param) {
+    warning(
+      "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
+      call. = FALSE
+    )
+    k.param <- n.obs - 1
+  }
+  
+  ## TODO: refactor this to avoid code duplication
+  if (!is.numeric(set.seed)){
+    
+    SNN_igraph <- scran::buildKNNGraph(
+      data.use,
+      k = k.param,
+      transposed = TRUE)
+    snn.matrix <- similarity(
+      SNN_igraph,
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
+    
+  } else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    
+    SNN_igraph <- scran::buildKNNGraph(
+      data.use,
+      k = k.param,
+      transposed = TRUE)
+    snn.matrix <- similarity(
+      SNN_igraph,
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
+  }
+}
+
+get_walktrapClusters <- function(embedding, c.param = NA){  
+  snn <- getSNN(data.use = embedding, set.seed = 11)
+  set.seed(11)
+  if (!is.na(c.param)){
+  walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+  maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+  } else {
+      modularity <- c(0)
+      for (i in 2:15){
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+      }
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity)+1)
+  }
+  return(maxmodclust)
+}
+
+
+CumulativeARI <- function(embedding, knownlabels, c.param = NA){
+  ARIs <- c()
+   for (i in 1:(dim(embedding)[2])) {
+     walktrapClusters <- get_walktrapClusters(embedding[,1:i], c.param)
+     ARI <- adjustedRandIndex(walktrapClusters, knownlabels)
+    ARIs <- c(ARIs, ARI) 
+       #pick highest modularity 
+    }
+  return(ARIs)
+}
+
+
+
+
+CumulativeFstatistic <- function(embedding, labels) {
+  RSS <- c()
+  i = 1
+    for (i in 1:(dim(embedding)[2])) {
+      RSS[i] = anova(lm(as.numeric(embedding[,i]) ~
+                             as.factor(labels)))[2,2]
+    }
+  
+  TSS = c()
+  for (i in 1:(dim(embedding)[2])) {
+    TSS[i] = sum(anova(lm(as.numeric(embedding[,i]) ~
+                               as.factor(labels)))[,2])
+  }
+  
+  Fstat <- c()
+  i = 1
+  for (i in 1:length(TSS)){
+    Fstat <- c(Fstat, (sum(TSS[1:i]) - sum(RSS[1:i]))/sum(RSS[1:i]))
+  }
+  return(Fstat)
+}
+
+
+```
+
+
+# 3 Cell Types (10x_3cl)
+```{r}
+#scran normalize
+sce_sc_10x_qc <- computeSumFactors(sce_sc_10x_qc)
+sce_sc_10x_qc <- logNormCounts(sce_sc_10x_qc)
+
+#get variable genes
+stats <- scran::modelGeneVar(logcounts(sce_sc_10x_qc))
+var.features <- scran::getTopHVGs(stats, n = 3000)
+
+#PCA reduction
+sce_sc_10x_qc <- runPCA(sce_sc_10x_qc, subset_row = var.features)
+
+
+#tsne
+set.seed(1234)
+sce10x_tsne <- Rtsne(reducedDim(sce_sc_10x_qc,"PCA")[,1:10])
+
+Cell_line <- sce_sc_10x_qc$cell_line_demuxlet
+
+#plot tsne dims
+ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=Cell_line)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("sc_10x 3 Cell Lines") +
+  xlab("TSNE 1") +
+  ylab("TSNE 2") 
+```
+
+
+
+
+## Cluster PCA
+```{r}
+PCAclusters <- get_walktrapClusters(reducedDim(sce_sc_10x_qc,"PCA")[,1:10])
+names(PCAclusters) <- colnames(sce_sc_10x_qc)
+
+PCAclusters_c3 <- get_walktrapClusters(reducedDim(sce_sc_10x_qc,"PCA")[,1:10], c.param = 3)
+names(PCAclusters_c3) <- colnames(sce_sc_10x_qc)
+```
+
+
+## iDA on 10X 3cl
+### unsupervised # of clusters
+```{r}
+TENx_iDA <- iDA_core(data.use = logcounts(sce_sc_10x_qc), NormCounts = logcounts(sce_sc_10x_qc), set.seed = 11, diag=TRUE)
+
+TENX_3cl_iDAclusters <- as.factor(TENx_iDA[[1]])
+```
+
+### supervised # of clusters
+```{r}
+TENx_iDA_3cl <- iDA_core(logcounts(sce_sc_10x_qc), NormCounts = logcounts(sce_sc_10x_qc), set.seed = 11, diag=TRUE, c.param = 3)
+
+TENX_3cl_iDAclusters_3cl <- as.factor(TENx_iDA_3cl[[1]])
+```
+
+
+## Plot the 10X 3cl TSNE with iDA cluster colors
+
+```{r}
+`3 Cell Lines` <- sce_sc_10x_qc$cell_line
+g1 <- ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=`3 Cell Lines`)) + geom_point() +
+  theme_classic() +
+  ggtitle("3 Cell Line Mix") +
+  xlab("tSNE 1") +
+  ylab("tSNE 2") +  
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=10)) 
+
+g2 <- ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=TENX_3cl_iDAclusters_3cl)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("tSNE of PCA reduced sc_10x 3 clusters, colors: iDA, c.param = 3") +
+  xlab("TSNE 1") +
+  ylab("TSNE 2") 
+
+g3 <- ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=Cell_line)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("tSNE of PCA reducted sc_10x 3 clusters, colors: Known Cell Line") +
+  xlab("TSNE 1") +
+  ylab("TSNE 2") 
+
+
+ PCAclusters_supervised <- as.factor(PCAclusters_c3)
+g4 <- ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=PCAclusters_supervised)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("tSNE of PCA reducted sc_10x 3 clusters, colors: PCA + walktrap clusters, c.param = 3") +
+  xlab("TSNE 1") +
+  ylab("TSNE 2") 
+
+
+PCAclusters_unsup <- as.factor(PCAclusters)
+g5 <- ggplot(as.data.frame(sce10x_tsne$Y), aes(x = sce10x_tsne$Y[,1], y = sce10x_tsne$Y[,2], col=PCAclusters_unsup)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("tSNE of PCA reduced sc_10x 3 clusters, colors: PCA + walktrap clsuters, unsupervised") +
+  xlab("TSNE 1") +
+  ylab("TSNE 2") 
+
+
+g1
+```
+
+
+## Cumulative Fstat
+```{r}
+#unsupervised iDA
+TENx_iDA_CumulativeFstat <- CumulativeFstatistic(embedding = TENx_iDA[[2]], labels = colData(sce_sc_10x_qc)$cell_line)
+
+#supervised iDA
+TENx_iDA_3cl_CumulativeFstat <- CumulativeFstatistic(embedding = TENx_iDA_3cl[[2]], labels = colData(sce_sc_10x_qc)$cell_line)
+
+
+#PCA
+TENx_PCA_3cl_CumulativeFstat <- CumulativeFstatistic(embedding = reducedDim(sce_sc_10x_qc,"PCA")[,1:10], labels = colData(sce_sc_10x_qc)$cell_line)
+
+CumulativeFstat_10x3cl <- as.data.frame(cbind("iDAunsup" = as.numeric(c(TENx_iDA_CumulativeFstat, NA)), "iDAsup" = c(TENx_iDA_3cl_CumulativeFstat, NA, NA, NA, NA, NA, NA, NA, NA), "PCA" = TENx_PCA_3cl_CumulativeFstat))
+
+cl3Fstat <- ggplot(CumulativeFstat_10x3cl, aes(x = c(1:10), y = iDAunsup)) + 
+  geom_point(aes(x = c(1:10), y = iDAunsup, color = "iDA")) +
+  geom_path(aes(x = c(1:10), y = iDAunsup, color = "iDA")) +
+  geom_point(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Cumulative F-statistic", subtitle = "3 Cell Lines") +
+  theme_classic() +  
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=10)) 
+
+cl3Fstat
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 5 Cell Types (10x_5cl)
+#scran normalization and PCA
+```{r}
+#scran normalize
+sce_sc_10x_5cl_qc <- computeSumFactors(sce_sc_10x_5cl_qc)
+sce_sc_10x_5cl_qc <- logNormCounts(sce_sc_10x_5cl_qc)
+
+#get variable genes
+stats <- scran::modelGeneVar(logcounts(sce_sc_10x_5cl_qc))
+var.features <- scran::getTopHVGs(stats, n = 3000)
+
+#PCA reduction
+sce_sc_10x_5cl_qc <- runPCA(sce_sc_10x_5cl_qc)
+
+
+#tsne
+set.seed(123)
+sce10x_5cl_tsne <- Rtsne(reducedDim(sce_sc_10x_5cl_qc,"PCA")[,1:10])
+
+`5 Cell Lines` <- sce_sc_10x_5cl_qc$cell_line_demuxlet
+
+#plot tsne dims
+Fivecellmix <- ggplot(as.data.frame(sce10x_5cl_tsne$Y), aes(x = sce10x_5cl_tsne$Y[,1], y = sce10x_5cl_tsne$Y[,2], col=`5 Cell Lines`)) + 
+  geom_point() +
+  theme_classic() +
+  ggtitle("5 Cell Line Mix") +
+  xlab("tSNE 1") +
+  ylab("tSNE 2") +  
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=10)) 
+
+Fivecellmix
+```
+
+
+
+## Cluster PCA
+```{r}
+PCAclusters_5cl <- get_walktrapClusters(reducedDim(sce_sc_10x_5cl_qc,"PCA")[,1:10])
+names(PCAclusters_5cl) <- colnames(sce_sc_10x_5cl_qc)
+
+PCAclusters_c5 <- get_walktrapClusters(reducedDim(sce_sc_10x_5cl_qc,"PCA")[,1:10], c.param = 5)
+names(PCAclusters_c5) <- colnames(sce_sc_10x_5cl_qc)
+```
+
+
+
+# iDA on 10X 5cl
+## unsupervised # of clusters
+```{r}
+TENx_iDA_5cl <- iDA(logcounts(sce_sc_10x_5cl_qc), NormCounts = logcounts(sce_sc_10x_5cl_qc), set.seed = 11)
+TENX_5cl_iDAclusters <- as.factor(TENx_iDA_5cl[[1]])
+```
+
+## supervised # of clusters
+```{r}
+TENx_iDA_5cl_sup <- iDA(logcounts(sce_sc_10x_5cl_qc), NormCounts = logcounts(sce_sc_10x_5cl_qc), set.seed = 11, c.param = 5)
+
+TENX_3cl_iDAclusters_5cl <- as.factor(TENx_iDA_5cl_sup[[1]])
+```
+
+## Cumulative Fstat
+```{r}
+#unsupervised iDA
+TENx_iDA5cl_CumulativeFstat_unsup <- CumulativeFstatistic(embedding = TENx_iDA_5cl[[2]], labels = colData(sce_sc_10x_5cl_qc)$cell_line_demuxlet)
+
+#supervised iDA
+TENx_iDA_5cl_CumulativeFstat_sup <- CumulativeFstatistic(embedding = TENx_iDA_5cl_sup[[2]], labels = colData(sce_sc_10x_5cl_qc)$cell_line_demuxlet)
+
+#PCA
+TENx_PCA_5cl_CumulativeFstat <- CumulativeFstatistic(embedding = reducedDim(sce_sc_10x_5cl_qc,"PCA")[,1:13], labels = colData(sce_sc_10x_5cl_qc)$cell_line_demuxlet)
+
+CumulativeFstat_10x5cl <- as.data.frame(cbind("iDAunsup" = as.numeric(c(TENx_iDA5cl_CumulativeFstat_unsup)), "iDAsup" = c(TENx_iDA_5cl_CumulativeFstat_sup, NA, NA, NA, NA, NA, NA, NA, NA, NA), "PCA" = TENx_PCA_5cl_CumulativeFstat))
+
+Fstat5CL <- ggplot(CumulativeFstat_10x5cl, aes(x = c(1:13), y = iDAunsup)) + 
+  geom_point(aes(x = c(1:13), y = iDAunsup, color = "iDA")) +
+  geom_path(aes(x = c(1:13), y = iDAunsup, color = "iDA")) +
+  geom_point(aes(x = c(1:13), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:13), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:13), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:13), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Cumulative F-statistic", subtitle = "5 Cell Lines") +
+  theme_classic() +  
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=10), legend.position = "none") 
+
+```
