@@ -38,10 +38,10 @@ setMethod("iDA", "SingleCellExperiment",
 
 
               normcounts <-  logcounts(object)
-              iDA_sce <- iDA_core(normcounts, scaled = TRUE, ...)
+              iDA_sce <- iDA_core(normcounts, NormCounts = normcounts, scaled = TRUE, ...)
               reducedDims(object) <- list(iDAcellweights = iDA_sce[[2]])
               colLabels(object) <- list(iDAclusters = iDA_sce[[1]])
-              rowData(object[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
+              #rowData(object[iDA_sce[[4]],]) <- list(iDAgeneweights = iDA_sce[[3]])
 
               return(object)
           })
@@ -72,13 +72,12 @@ setMethod("iDA", "Seurat",
 
             iDA_seurat <- iDA_core(counts, NormCounts = NormCounts, scaled = TRUE, ...)
 
-            object[["iDA"]] <- CreateDimReducObject(embeddings = iDA_seurat[[2]],
+            object[["iDA"]] <- CreateDimReducObject(embeddings = as.matrix(iDA_seurat[[2]]),
                                                     key = "LD_",
-                                                    loadings = iDA_seurat[[3]],
+                                                    loadings = as.matrix(iDA_seurat[[3]]),
                                                     assay = assay)
 
             object@meta.data[["iDA_clust"]] <- iDA_seurat[[1]]
-            object@reductions$iDA@stdev <- iDA_seurat[[5]]
             object[[assay]]@var.features <- iDA_seurat[[4]]
             return(object)
           })

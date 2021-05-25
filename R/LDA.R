@@ -295,7 +295,6 @@ getSNN <- function(data.use,
 #'
 #'
 #'@param SNN a matrix of shared nearest neighbors (output from getSNN)
-#'@param resolution resolution parameter for louvain clustering. Low resolution = few clusters, high resolution = many clusters
 #'@param set.seed Seed of the random number generator.
 
 #'@importFrom NetworkToolbox louvain
