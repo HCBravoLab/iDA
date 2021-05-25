@@ -1,0 +1,337 @@
+---
+title: "GVD_pipeline"
+author: "Theresa Alexander"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load iDA
+```{r}
+library(iDA)
+library(DESeq2)
+library(patchwork)
+library(clValid)
+```
+
+# Pheno Data
+```{r}
+#pheno data
+unduped_samples = read.csv("~/Desktop/iDA_bioc/data/sampleids.csv")
+coldata <- read.csv("~/Desktop/iDA_bioc/data/E-GEUV-3.sdrf.csv",  header = TRUE, row.names = "AssayName")
+coldata = coldata[unduped_samples$x,]
+coldata_pop_lab = coldata[,c(2,6)]
+```
+
+# Geuvadis (GVD) expression and phenotype data
+
+Geuvadis data can be downloaded from here:
+https://www.ebi.ac.uk/arrayexpress/experiments/E-GEUV-1/files/analysis_results/?ref=E-GEUV-1
+```{r}
+#read in data table
+GVD_raw <- read.table("~/Desktop/iDA_bioc/data/GD660.GeneQuantCount.txt", header = TRUE, row.names = "Gene_Symbol")
+
+#subset columns for sample counts and remove duplicate samples
+GVD_raw <- data.matrix(GVD_raw[,4:663])
+samples <- colnames(GVD_raw)
+#samples <- strsplit(samples, ".", fixed = TRUE)
+#samples <- do.call(rbind, samples)[,1]
+#colnames(GVD_raw) <- samples
+GVD_raw <- GVD_raw[, !duplicated(colnames(GVD_raw))]
+
+#rounded count values because Array Express uses an EM algorithm for alignment and can result in non-integer counts. Deseq requires integer values
+GVD_raw <- round(GVD_raw)
+GVD_raw <- GVD_raw[,rownames(coldata)]
+
+#check if order of rows and cols are the same
+all(rownames(coldata) %in% colnames(GVD_raw))
+all(rownames(coldata) == colnames(GVD_raw))
+
+dds <- DESeqDataSetFromMatrix(countData = GVD_raw,
+                              colData = coldata, design = ~ Population)
+
+#get rid of low count genes
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+#normalize counts
+dds <- estimateSizeFactors(dds)
+normalized_counts <- counts(dds, normalized=TRUE)
+#variance stabilizing transformation
+vsc_dds <- assay(varianceStabilizingTransformation(dds, blind = TRUE))
+```
+
+
+# Run iDA on GVD varianceStabilizedTransformation data
+```{r}
+#run iDA
+GVDvst_iDA_disp1 <- iDA(vsc_dds, NormCounts = vsc_dds, set.seed = 11, var.Features = "disp")
+
+#save iDA embedding and idents
+GVDvst_iDA_disp1_ident = GVDvst_iDA_disp1[[1]]
+GVDvst_iDA_disp1_embedding = scale(GVDvst_iDA_disp1[[2]], center = TRUE, scale = TRUE)
+
+rownames(GVDvst_iDA_disp1_embedding) = colnames(normalized_counts)
+GVDvst_iDA_disp1_embedding = cbind(GVDvst_iDA_disp1_embedding, coldata_pop_lab[ rownames(GVDvst_iDA_disp1_embedding),])
+```
+
+# PCA 
+```{r}
+var.features <- GVDvst_iDA_disp1[[4]]
+GVDvst_PCAembedding_varfeatures_svd <- svd(vsc_dds[var.features,])$v
+```
+
+# cumulative F-Statistics and R^2 for iDA and PCA embeddings
+## iDA F-stat and R^2
+```{r}
+#getting RSS for iDA across dimensions
+iDARSS = c()
+for (i in 1:(dim(GVDvst_iDA_disp1_embedding)[2]-2)) {
+  iDARSS[i] = anova(lm(as.numeric(GVDvst_iDA_disp1_embedding[,i]) ~ as.factor(coldata$Population)*as.factor(coldata$laboratory)))[4,2]
+}
+
+
+#getting TSS for iDA across dimensions
+
+iDATSS = c()
+for (i in 1:(dim(GVDvst_iDA_disp1_embedding)[2]-2)) {
+  iDATSS[i] = sum(anova(lm(as.numeric(GVDvst_iDA_disp1_embedding[,i]) ~ as.factor(coldata$Population)*as.factor(coldata$laboratory)))[,2])
+}
+
+
+
+
+Fstat_GVD_iDA_maineffects = c((iDATSS[1]-iDARSS[1])/iDARSS[1], 
+                       (sum(iDATSS[1:2])-sum(iDARSS[1:2]))/sum(iDARSS[1:2]), 
+                       (sum(iDATSS[1:3])-sum(iDARSS[1:3]))/sum(iDARSS[1:3]), 
+                       (sum(iDATSS[1:4])-sum(iDARSS[1:4]))/sum(iDARSS[1:4]), 
+                       (sum(iDATSS[1:5])-sum(iDARSS[1:5]))/sum(iDARSS[1:5]), 
+                       (sum(iDATSS[1:6])-sum(iDARSS[1:6]))/sum(iDARSS[1:6]),   
+                       (sum(iDATSS[1:7])-sum(iDARSS[1:7]))/sum(iDARSS[1:7]),  
+                       (sum(iDATSS[1:8])-sum(iDARSS[1:8]))/sum(iDARSS[1:8]), 
+                       (sum(iDATSS[1:9])-sum(iDARSS[1:9]))/sum(iDARSS[1:9]), 
+                       (sum(iDATSS[1:10])-sum(iDARSS[1:10]))/sum(iDARSS[1:10]))
+
+
+
+R2_GVD_iDA_maineffects = c(1-(iDARSS[1]/iDATSS[1]), 
+                       1-sum(iDARSS[1:2])/sum(iDATSS[1:2]), 
+                       1-sum(iDARSS[1:3])/sum(iDATSS[1:3]), 
+                       1-sum(iDARSS[1:4])/sum(iDATSS[1:4]), 
+                       1-sum(iDARSS[1:5])/sum(iDATSS[1:5]), 
+                       1-sum(iDARSS[1:6])/sum(iDATSS[1:6]),   
+                       1-sum(iDARSS[1:7])/sum(iDATSS[1:7]),  
+                       1-sum(iDARSS[1:8])/sum(iDATSS[1:8]), 
+                       1-sum(iDARSS[1:9])/sum(iDATSS[1:9]),
+                       1-sum(iDARSS[1:10])/sum(iDATSS[1:10]))
+
+```
+
+
+
+##PCA F-stat and R^2
+```{r}
+
+#getting RSS for PCA across dimensions
+PCRSS = c()
+for (i in 1:10) {
+  PCRSS[i] = anova(lm(as.numeric(GVDvst_PCAembedding_varfeatures_svd[,i]) ~ as.factor(coldata$Population)*as.factor(coldata$laboratory)))[4,2]
+}
+
+
+
+#getting TSS for PCA across dimensions
+PCTSS = c()
+for (i in 1:10) {
+  PCTSS[i] = sum(anova(lm(as.numeric(GVDvst_PCAembedding_varfeatures_svd[,i]) ~ as.factor(coldata$Population)*as.factor(coldata$laboratory)))[,2])
+}
+
+
+#compute cumulative F-statistic for each dimension
+Fstat_GVD_PCA_maineffects = c((PCTSS[1]-PCRSS[1])/PCRSS[1], 
+                       (sum(PCTSS[1:2])-sum(PCRSS[1:2]))/sum(PCRSS[1:2]), 
+                       (sum(PCTSS[1:3])-sum(PCRSS[1:3]))/sum(PCRSS[1:3]), 
+                       (sum(PCTSS[1:4])-sum(PCRSS[1:4]))/sum(PCRSS[1:4]), 
+                       (sum(PCTSS[1:5])-sum(PCRSS[1:5]))/sum(PCRSS[1:5]), 
+                       (sum(PCTSS[1:6])-sum(PCRSS[1:6]))/sum(PCRSS[1:6]),   
+                       (sum(PCTSS[1:7])-sum(PCRSS[1:7]))/sum(PCRSS[1:7]),  
+                       (sum(PCTSS[1:8])-sum(PCRSS[1:8]))/sum(PCRSS[1:8]), 
+                       (sum(PCTSS[1:9])-sum(PCRSS[1:9]))/sum(PCRSS[1:9]), 
+                       (sum(PCTSS[1:10])-sum(PCRSS[1:10]))/sum(PCRSS[1:10]))
+
+
+#compute cumulative R^2 for each dimension
+R2_GVD_PCA_maineffects = c(1-(PCRSS[1]/PCTSS[1]), 
+                       1-sum(PCRSS[1:2])/sum(PCTSS[1:2]), 
+                       1-sum(PCRSS[1:3])/sum(PCTSS[1:3]), 
+                       1-sum(PCRSS[1:4])/sum(PCTSS[1:4]), 
+                       1-sum(PCRSS[1:5])/sum(PCTSS[1:5]), 
+                       1-sum(PCRSS[1:6])/sum(PCTSS[1:6]),   
+                       1-sum(PCRSS[1:7])/sum(PCTSS[1:7]),  
+                       1-sum(PCRSS[1:8])/sum(PCTSS[1:8]), 
+                       1-sum(PCRSS[1:9])/sum(PCTSS[1:9]),
+                       1-sum(PCRSS[1:10])/sum(PCTSS[1:10]))
+
+
+
+
+Fstat_GVD = as.data.frame(cbind(Fstat_GVD_iDA_maineffects, Fstat_GVD_PCA_maineffects))
+R2_GVD = as.data.frame(cbind(R2_GVD_iDA_maineffects, R2_GVD_PCA_maineffects))
+
+
+```
+
+
+##Plot F-stat and R^2
+```{r}
+fstatGVD_plot <- ggplot(Fstat_GVD, aes(x = as.factor(1:10))) + 
+  geom_point(aes(y = Fstat_GVD_iDA_maineffects,color = "iDA")) + 
+  geom_line(aes(x = 1:10, y = Fstat_GVD_iDA_maineffects, color = "iDA")) + 
+  geom_point(aes(y = Fstat_GVD_PCA_maineffects,color = "PCA")) + 
+  geom_line(aes(x = 1:10, y = Fstat_GVD_PCA_maineffects, color = "PCA")) + 
+  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + 
+  labs(x = "Dimension", y = "Cumulative F-statistic") +
+    theme_classic() +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=14)) 
+
+
+
+R2GVD_plot <- ggplot(R2_GVD, aes(x = as.factor(1:10))) + 
+  geom_point(aes(y = R2_GVD_iDA_maineffects,color = "iDA")) + 
+  geom_line(aes(x = 1:10, y = R2_GVD_iDA_maineffects, color = "iDA")) + 
+  geom_point(aes(y = R2_GVD_PCA_maineffects,color = "PCA")) + 
+  geom_line(aes(x = 1:10, y = R2_GVD_PCA_maineffects, color = "PCA"))  +  
+  scale_colour_manual("", breaks = c("iDA", "PCA"), values = c("blue", "orange")) + 
+  labs( x = "Dimension", y = "Cumulative" ~ R^2) +
+  theme_classic() +
+    theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=14)) 
+
+
+fstatGVD_plot
+R2GVD_plot
+```
+
+
+# plot LD versus genes in eQTL with YRI and EUR populations
+## get SNP file
+### rs143415501-RAB5C eQTL pair
+```{r}
+GVD_iDAembedding <- GVDvst_iDA_disp1_embedding
+#rs143415501 AFR MAF = .06, EUR MAF = 0
+ENSG00000108774_10_iDA = as.data.frame(cbind(GVD_iDAembedding, ENSG00000108774.10 = vsc_dds["ENSG00000108774.10",]))
+
+#plot LD3 versus RAB5C gene expression
+RAB5C <- ggplot(data = ENSG00000108774_10_iDA, aes(x = LD3, y = ENSG00000108774.10, color = Population), size = 1.2) +
+  geom_point(aes(shape = as.factor(laboratory)), size = 1.2) + 
+  xlab( "LD3 Weight") + 
+  ylab("RAB5C Expression") + 
+  theme_classic() + 
+  labs(color='Population', shape = "Laboratory") + 
+  scale_shape_manual(values=c(15, 16, 17, 18, 13, 8, 6)) +
+  theme(legend.position = "none") +    
+  theme(#axis.text=element_text(size=8),
+     axis.text = element_text(size = 8),
+        axis.title=element_text(size=12)) 
+ 
+
+```
+
+
+
+### rs11757158-SRF eQTL pair
+```{r}
+#rs11757158 SNP has AFR MAF = .45, EUR MAF = .09
+ENSG000001126586_iDA = as.data.frame(cbind(GVD_iDAembedding, ENSG00000112658.6 = vsc_dds["ENSG00000112658.6",]))
+
+#plot LD3 versus SRF gene expression
+SRF <- ggplot(data = ENSG000001126586_iDA, aes(x = LD3, 
+                                        y = ENSG00000112658.6, 
+                                        color = Population), size = 1.2) + 
+  geom_point(aes(shape = as.factor(laboratory)), size = 1.2)  +  
+  xlab( "LD3 Weight") + 
+  ylab("SRF Expression") + 
+  theme_classic() + 
+  labs(color='Population', shape = "Laboratory") + 
+  scale_shape_manual(values=c(15, 16, 17, 18, 13, 8, 6))+
+  theme(legend.position = "none") +    
+  theme(#axis.text=element_text(size=8),
+     axis.text = element_text(size = 8),
+        axis.title=element_text(size=12)) 
+```
+
+##rs114313536-PSKH1 eQTL pair
+```{r}
+#rs114313536 AFR MAF = .16, EUR MAF = .02
+ENSG000001597924_iDA = as.data.frame(cbind(GVD_iDAembedding,
+                                           ENSG00000159792.4 = vsc_dds["ENSG00000159792.4",]))
+
+
+#plot LD7 versus PSKH1 gene expression
+PSKH1 <- ggplot(data = ENSG000001597924_iDA, aes(x = LD3, 
+                                        y = ENSG00000159792.4, 
+                                        color = Population), size = 1.2) + 
+  geom_point(aes(shape = as.factor(laboratory)), size = 1.2) + 
+  xlab( "LD3 Weight") + 
+  ylab("PSKH1 Expression") + 
+  theme_classic() + 
+  labs(color='Population', shape = "Laboratory") + 
+  scale_shape_manual(values=c(15, 16, 17, 18, 13, 8, 6)) +
+  theme(legend.position = "none") +    
+  theme(#axis.text=element_text(size=8),
+     axis.text = element_text(size = 8),
+        axis.title=element_text(size=12)) 
+ 
+
+```
+
+
+##rs200846953-PWAR6 eQTL pair
+```{r}
+#rs200846953 AFR MAF = 0.54, EUR MAF = 	0.83
+ENSG000002571511_iDA = as.data.frame(cbind(GVD_iDAembedding, ENSG00000257151.1 = vsc_dds["ENSG00000257151.1",]))
+
+#plot LD3 versus PWAR6 gene expression
+PWAR6 <- ggplot(data = ENSG000002571511_iDA, aes(x = LD3, y = ENSG00000257151.1, color = Population), size = 1.2) + 
+  geom_point(aes(shape = as.factor(laboratory)), size = 1.2)  +  
+  xlab( "LD3 Weight") + 
+  ylab("PWAR6 Expression") + 
+  theme_classic() + 
+  labs(color='Population', shape = "Laboratory") + 
+  scale_shape_manual(values=c(15, 16, 17, 18, 13, 8, 6))+
+  #theme(legend.position = "none") +    
+  theme(#axis.text=element_text(size=8),
+     axis.text = element_text(size = 8),
+        axis.title=element_text(size=12)) 
+
+```
+
+
+```{r, eval = FALSE}
+eQTLplots <- (RAB5C | SRF) /(PSKH1 | PWAR6)
+
+ggsave("Fig4.png", units="in", width=6.5, height = 4.25,dpi=300)
+ggsave("Fig4legend.png", units="in", width=6.5, height = 4.25,dpi=300)
+```
+
+
+#Dunn index
+```{r}
+samplebygeneGVD = t(vsc_dds)
+# 
+# # distance matrix (takes awhile to compute euclidean distance)
+ Dist_GVD <- dist(samplebygeneGVD, method="euclidean")
+# 
+# #Given populatino and laboratory clusters
+ GVD_pop_lab = coldata$poplab
+# #iDA clusters
+ iDAGVD_clusters = GVD_iDA_ident
+# 
+poplabclusts_Dunn = dunn(Dist_GVD, as.numeric(GVD_pop_lab))
+iDAclustsGVD_Dunn = dunn(Dist_GVD, as.numeric(iDAGVD_clusters))
+```
