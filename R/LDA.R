@@ -12,7 +12,7 @@
 #'
 #' @return (character) a list of row names with high dispersion rows
 #' @export
-VariableGenes <- function(data.use,
+VariableGenes <- function(NormCounts,
                           dispersion.cutoff,
                           mean.low.cutoff,
                           mean.high.cutoff) {
