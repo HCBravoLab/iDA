@@ -1,0 +1,399 @@
+---
+title: "Cell Mix"
+author: "Theresa Alexander"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data
+Data can be downloaded from sc_mixology here:
+https://github.com/LuyiTian/sc_mixology/blob/master/data/9cellmix_qc.RData
+
+```{r}
+load("~/Downloads/9cellmix_qc.RData")
+library(prodlim)
+```
+
+```{r}
+get_walktrapClusters <- function(embedding, c.param = NA){  
+  snn <- getSNN(data.use = embedding, set.seed = 11)
+  set.seed(11)
+  if (!is.na(c.param)){
+  walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+  maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+  } else {
+      modularity <- c(0)
+      for (i in 2:15){
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+      }
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity)+1)
+  }
+  return(maxmodclust)
+}
+
+getSNN <- function(data.use,
+                   k.param = 10,
+                   prune.SNN = 1/15,
+                   set.seed = FALSE) {
+  data.use <- as.matrix(data.use)
+  n.obs <- nrow(x = data.use)
+  
+  if (n.obs < k.param) {
+    warning(
+      "k.param set larger than number of cells. Setting k.param to number of cells - 1.",
+      call. = FALSE
+    )
+    k.param <- n.obs - 1
+  }
+  
+  ## TODO: refactor this to avoid code duplication
+  if (!is.numeric(set.seed)){
+    
+    SNN_igraph <- scran::buildKNNGraph(
+      data.use,
+      k = k.param,
+      transposed = TRUE)
+    snn.matrix <- similarity(
+      SNN_igraph,
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
+    
+  } else if (is.numeric(set.seed)){
+    set.seed(set.seed)
+    
+    SNN_igraph <- scran::buildKNNGraph(
+      data.use,
+      k = k.param,
+      transposed = TRUE)
+    snn.matrix <- similarity(
+      SNN_igraph,
+      method = "jaccard")
+    
+    snn.matrix[snn.matrix < 1/15] <- 0
+    rownames(x = snn.matrix) <- rownames(x = data.use)
+    colnames(x = snn.matrix) <- rownames(x = data.use)
+    
+    snn.graph <- graph_from_adjacency_matrix(snn.matrix, weighted = TRUE, mode = "undirected")
+    return(snn.graph)
+  }
+}
+
+get_walktrapClusters <- function(embedding, c.param = NA){  
+  snn <- getSNN(data.use = embedding, set.seed = 11)
+  set.seed(11)
+  if (!is.na(c.param)){
+  walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+  maxmodclust <- igraph::cut_at(walktrapClusters, n = c.param)
+  } else {
+      modularity <- c(0)
+      for (i in 2:15){
+        walktrapClusters <- suppressWarnings(igraph::cluster_walktrap(snn))
+        modularity <- c(modularity,  modularity(snn, suppressWarnings(igraph::cut_at(walktrapClusters, n = i))))
+      }
+      maxmodclust <- igraph::cut_at(walktrapClusters, n = which.max(modularity)+1)
+  }
+  return(maxmodclust)
+}
+
+
+CumulativeARI <- function(embedding, knownlabels, c.param = NA){
+  ARIs <- c()
+   for (i in 1:(dim(embedding)[2])) {
+     walktrapClusters <- get_walktrapClusters(embedding[,1:i], c.param)
+     ARI <- adjustedRandIndex(walktrapClusters, knownlabels)
+    ARIs <- c(ARIs, ARI) 
+       #pick highest modularity 
+    }
+  return(ARIs)
+}
+
+
+CumulativeFstatistic <- function(embedding, labels) {
+  RSS <- c()
+  i = 1
+    for (i in 1:(dim(embedding)[2])) {
+      RSS[i] = anova(lm(as.numeric(embedding[,i]) ~
+                             as.factor(labels)))[2,2]
+    }
+  
+  TSS = c()
+  for (i in 1:(dim(embedding)[2])) {
+    TSS[i] = sum(anova(lm(as.numeric(embedding[,i]) ~
+                               as.factor(labels)))[,2])
+  }
+  
+  Fstat <- c()
+  i = 1
+  for (i in 1:length(TSS)){
+    Fstat <- c(Fstat, (sum(TSS[1:i]) - sum(RSS[1:i]))/sum(RSS[1:i]))
+  }
+  return(Fstat)
+}
+```
+
+
+
+```{r}
+library(SummarizedExperiment)
+library(scater)
+#scran normalize
+sce_SC1_qc <- computeSumFactors(sce_SC1_qc)
+sce_SC1_qc <- logNormCounts(sce_SC1_qc)
+
+sce_SC2_qc <- computeSumFactors(sce_SC2_qc)
+sce_SC2_qc <- logNormCounts(sce_SC2_qc)
+
+sce_SC3_qc <- computeSumFactors(sce_SC3_qc)
+sce_SC3_qc <- logNormCounts(sce_SC3_qc)
+
+sce_SC4_qc <- computeSumFactors(sce_SC4_qc)
+sce_SC4_qc <- logNormCounts(sce_SC4_qc)
+
+
+#get variable genes
+stats1 <- scran::modelGeneVar(logcounts(sce_SC1_qc))
+var.features1 <- scran::getTopHVGs(stats1, n = 3000)
+
+stats2 <- scran::modelGeneVar(logcounts(sce_SC2_qc))
+var.features2 <- scran::getTopHVGs(stats2, n = 3000)
+
+stats3 <- scran::modelGeneVar(logcounts(sce_SC3_qc))
+var.features3 <- scran::getTopHVGs(stats3, n = 3000)
+
+stats4 <- scran::modelGeneVar(logcounts(sce_SC4_qc))
+var.features4 <- scran::getTopHVGs(stats4, n = 3000)
+
+#PCA reduction
+sce_SC1_qc <- runPCA(sce_SC1_qc, subset_row = var.features1)
+sce_SC2_qc <- runPCA(sce_SC2_qc, subset_row = var.features2)
+sce_SC3_qc <- runPCA(sce_SC3_qc, subset_row = var.features3)
+sce_SC4_qc <- runPCA(sce_SC4_qc, subset_row = var.features4)
+
+
+colData(sce_SC1_qc)$H2228_prop <- rep(-1, length(colData(sce_SC1_qc)$H2228))
+colData(sce_SC1_qc)$H1975_prop <- rep(-1, length(colData(sce_SC1_qc)$H1975))
+colData(sce_SC1_qc)$HCC827_prop <- rep(-1, length(colData(sce_SC1_qc)$HCC827))
+
+colData(sce_SC2_qc)$H2228_prop <- rep(-1, length(colData(sce_SC2_qc)$H2228))
+colData(sce_SC2_qc)$H1975_prop <- rep(-1, length(colData(sce_SC2_qc)$H1975))
+colData(sce_SC2_qc)$HCC827_prop <- rep(-1, length(colData(sce_SC2_qc)$HCC827))
+
+colData(sce_SC3_qc)$H2228_prop <- rep(-1, length(colData(sce_SC3_qc)$H2228))
+colData(sce_SC3_qc)$H1975_prop <- rep(-1, length(colData(sce_SC3_qc)$H1975))
+colData(sce_SC3_qc)$HCC827_prop <- rep(-1, length(colData(sce_SC3_qc)$HCC827))
+
+colData(sce_SC4_qc)$H2228_prop <- rep(-1, length(colData(sce_SC4_qc)$H2228))
+colData(sce_SC4_qc)$H1975_prop <- rep(-1, length(colData(sce_SC4_qc)$H1975))
+colData(sce_SC4_qc)$HCC827_prop <- rep(-1, length(colData(sce_SC4_qc)$HCC827))
+
+
+for (i in 1:nrow(sce_SC4_qc@colData)) {
+  colData(sce_SC4_qc)$H2228_prop[i] <- colData(sce_SC4_qc)$H2228[i] / 9
+  colData(sce_SC4_qc)$H1975_prop[i] <- colData(sce_SC4_qc)$H1975[i] / 9
+  colData(sce_SC4_qc)$HCC827_prop[i] <- colData(sce_SC4_qc)$HCC827[i] / 9
+}
+
+for (i in 1:nrow(sce_SC1_qc@colData)) {
+  colData(sce_SC1_qc)$H2228_prop[i] <- colData(sce_SC1_qc)$H2228[i] / 9
+  colData(sce_SC1_qc)$H1975_prop[i] <- colData(sce_SC1_qc)$H1975[i] / 9
+  colData(sce_SC1_qc)$HCC827_prop[i] <- colData(sce_SC1_qc)$HCC827[i] / 9
+}
+  
+for (i in 1:nrow(sce_SC2_qc@colData)) {
+  colData(sce_SC2_qc)$H2228_prop[i] <- colData(sce_SC2_qc)$H2228[i] / 9
+  colData(sce_SC2_qc)$H1975_prop[i] <- colData(sce_SC2_qc)$H1975[i] / 9
+  colData(sce_SC2_qc)$HCC827_prop[i] <- colData(sce_SC2_qc)$HCC827[i] / 9
+}
+  
+for (i in 1:nrow(sce_SC3_qc@colData)) {
+  colData(sce_SC3_qc)$H2228_prop[i] <- colData(sce_SC3_qc)$H2228[i] / 9
+  colData(sce_SC3_qc)$H1975_prop[i] <- colData(sce_SC3_qc)$H1975[i] / 9
+  colData(sce_SC3_qc)$HCC827_prop[i] <- colData(sce_SC3_qc)$HCC827[i] / 9
+}
+  
+
+
+colData(sce_SC1_qc)$group = paste("clu",colData(sce_SC1_qc)$H2228_prop,colData(sce_SC1_qc)$H1975_prop,colData(sce_SC1_qc)$HCC827_prop,sep="_")
+col1 <- rgb(sce_SC1_qc$H1975_prop, sce_SC1_qc$HCC827_prop, sce_SC1_qc$H2228_prop,alpha=0.9)
+
+colData(sce_SC2_qc)$group = paste("clu",colData(sce_SC2_qc)$H2228_prop,colData(sce_SC2_qc)$H1975_prop,colData(sce_SC2_qc)$HCC827_prop,sep="_")
+col2 <- rgb(sce_SC2_qc$H1975_prop, sce_SC2_qc$HCC827_prop, sce_SC2_qc$H2228_prop,alpha=0.9)
+
+colData(sce_SC3_qc)$group = paste("clu",colData(sce_SC3_qc)$H2228_prop,colData(sce_SC3_qc)$H1975_prop,colData(sce_SC3_qc)$HCC827_prop,sep="_")
+col3 <- rgb(sce_SC3_qc$H1975_prop, sce_SC3_qc$HCC827_prop, sce_SC3_qc$H2228_prop,alpha=0.9)
+
+colData(sce_SC4_qc)$group = paste("clu",colData(sce_SC4_qc)$H2228_prop,colData(sce_SC4_qc)$H1975_prop,colData(sce_SC4_qc)$HCC827_prop,sep="_")
+col4 <- rgb(sce_SC4_qc$H1975_prop, sce_SC4_qc$HCC827_prop, sce_SC4_qc$H2228_prop,alpha=0.9)
+
+
+sc1PCA <- ggplot(data=as.data.frame(reducedDim(sce_SC1_qc,"PCA")),aes(x=PC1,y=PC2,col=sce_SC1_qc$group))+
+  geom_point(size=1.2,show.legend = F,alpha=0.7)+
+  scale_color_manual(guide=FALSE, values = unique(col1), limits = unique(sce_SC1_qc$group))+
+  theme(text = element_text(size=10),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"),
+axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  ggtitle("PCA Cell Mix 1")
+
+sc2PCA <- ggplot(data=as.data.frame(reducedDim(sce_SC2_qc,"PCA")),aes(x=PC1,y=PC2,col=sce_SC2_qc$group))+
+  geom_point(size=1.2,show.legend = F,alpha=0.7)+
+  scale_color_manual(guide=FALSE,values = unique(col2), limits = unique(sce_SC2_qc$group))+
+  theme(text = element_text(size=10),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"),
+axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  ggtitle("PCA Cell Mix 2")
+
+sc3PCA <- ggplot(data=as.data.frame(reducedDim(sce_SC3_qc,"PCA")),aes(x=PC1,y=PC2,col=sce_SC3_qc$group))+
+  geom_point(size=1.2,show.legend = F,alpha=0.7)+
+  scale_color_manual(guide=FALSE,values = unique(col3), limits = unique(sce_SC3_qc$group))+
+  theme(text = element_text(size=10),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"),
+axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  ggtitle("PCA Cell Mix 3")
+
+
+sc4PCA <- ggplot(data=as.data.frame(reducedDim(sce_SC4_qc,"PCA")),aes(x=PC1,y=PC2,col=sce_SC4_qc$group))+
+  geom_point(size= 1.2,show.legend = F,alpha=0.7)+
+  scale_color_manual(guide=FALSE,values = unique(col4), limits = unique(sce_SC4_qc$group))+
+  theme(text = element_text(size=10),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"),
+axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  ggtitle("PCA Cell Mix 4")
+
+sc1PCA | sc2PCA | sc3PCA | sc4PCA
+#ggsave("S9C.png", units="in", width=7, height = 2, dpi=300)
+```
+
+
+# iDA 
+```{r}
+iDA_sce_SC1_qc <- iDA(logcounts(sce_SC1_qc), NormCounts = logcounts(sce_SC1_qc), set.seed = 11)
+iDA10_sce_SC1_qc <- iDA(logcounts(sce_SC1_qc), NormCounts = logcounts(sce_SC1_qc), set.seed = 11, c.param = 11)
+iDA_sce_SC1_qcclusters <- as.factor(iDA_sce_SC1_qc[[1]])
+
+iDA_sce_SC2_qc <- iDA(logcounts(sce_SC2_qc), NormCounts = logcounts(sce_SC2_qc), set.seed = 11)
+iDA10_sce_SC2_qc <- iDA(logcounts(sce_SC2_qc), NormCounts = logcounts(sce_SC2_qc), set.seed = 11, c.param = 11)
+iDA_sce_SC2_qcclusters <- as.factor(iDA_sce_SC2_qc[[1]])
+
+iDA_sce_SC3_qc <- iDA(logcounts(sce_SC3_qc), NormCounts = logcounts(sce_SC3_qc), set.seed = 11)
+iDA10_sce_SC3_qc <- iDA(logcounts(sce_SC3_qc), NormCounts = logcounts(sce_SC3_qc), set.seed = 11, c.param = 11)
+iDA_sce_SC3_qcclusters <- as.factor(iDA_sce_SC3_qc[[1]])
+
+iDA_sce_SC4_qc <- iDA(logcounts(sce_SC4_qc), NormCounts = logcounts(sce_SC4_qc), set.seed = 11)
+iDA10_sce_SC4_qc <- iDA(logcounts(sce_SC4_qc), NormCounts = logcounts(sce_SC4_qc), set.seed = 11, c.param = 11)
+iDA_sce_SC4_qcclusters <- as.factor(iDA_sce_SC4_qc[[1]])
+```
+
+
+#Cumulative Fstat
+```{r}
+CumulativeFstatSC1_iDA <- CumulativeFstatistic(embedding = iDA_sce_SC1_qc[[2]], labels = colData(sce_SC1_qc)$group)
+CumulativeFstatSC1_iDA10 <- CumulativeFstatistic(embedding = iDA10_sce_SC1_qc[[2]], labels = colData(sce_SC1_qc)$group)
+CumulativeFstatSC1_PCA <- CumulativeFstatistic(embedding = reducedDim(sce_SC1_qc, "PCA")[,1:10], labels = colData(sce_SC1_qc)$group)
+
+CumulativeFstatSC2_iDA <- CumulativeFstatistic(embedding = iDA_sce_SC2_qc[[2]], labels = colData(sce_SC2_qc)$group)
+CumulativeFstatSC2_iDA10 <- CumulativeFstatistic(embedding = iDA10_sce_SC2_qc[[2]], labels = colData(sce_SC2_qc)$group)
+CumulativeFstatSC2_PCA <- CumulativeFstatistic(embedding = reducedDim(sce_SC2_qc, "PCA")[,1:10], labels = colData(sce_SC2_qc)$group)
+
+CumulativeFstatSC3_iDA <- CumulativeFstatistic(embedding = iDA_sce_SC3_qc[[2]], labels = colData(sce_SC3_qc)$group)
+CumulativeFstatSC3_iDA10 <- CumulativeFstatistic(embedding = iDA10_sce_SC3_qc[[2]], labels = colData(sce_SC3_qc)$group)
+CumulativeFstatSC3_PCA <- CumulativeFstatistic(embedding = reducedDim(sce_SC3_qc, "PCA")[,1:10], labels = colData(sce_SC3_qc)$group)
+
+
+CumulativeFstatSC4_iDA <- CumulativeFstatistic(embedding = iDA_sce_SC4_qc[[2]], labels = colData(sce_SC4_qc)$group)
+CumulativeFstatSC4_iDA10 <- CumulativeFstatistic(embedding = iDA10_sce_SC4_qc[[2]], labels = colData(sce_SC4_qc)$group)
+CumulativeFstatSC4_PCA <- CumulativeFstatistic(embedding = reducedDim(sce_SC4_qc, "PCA")[,1:10], labels = colData(sce_SC4_qc)$group)
+
+
+CumulativeFstat_SC1 <- as.data.frame(cbind("iDA" = as.numeric(c(CumulativeFstatSC1_iDA, NA, NA, NA, NA)), "iDAsup" = c(CumulativeFstatSC1_iDA10), "PCA" = CumulativeFstatSC1_PCA))
+
+CumulativeFstat_SC2 <- as.data.frame(cbind("iDA" = as.numeric(c(CumulativeFstatSC2_iDA, NA, NA, NA,NA)), "iDAsup" = c(CumulativeFstatSC2_iDA10), "PCA" = CumulativeFstatSC2_PCA))
+
+CumulativeFstat_SC3 <- as.data.frame(cbind("iDA" = as.numeric(c(CumulativeFstatSC3_iDA, NA, NA, NA,NA, NA, NA)), "iDAsup" = c(CumulativeFstatSC3_iDA10), "PCA" = CumulativeFstatSC3_PCA))
+
+CumulativeFstat_SC4 <- as.data.frame(cbind("iDA" = as.numeric(c(CumulativeFstatSC4_iDA, NA, NA, NA,NA, NA)), "iDAsup" = c(CumulativeFstatSC4_iDA10), "PCA" = CumulativeFstatSC4_PCA))
+
+
+
+sc1 <- ggplot(CumulativeFstat_SC1, aes(x = c(1:10), y = iDA)) + 
+  geom_point(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_path(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_point(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Pseudo Cells", subtitle =  "Mixture 1") +
+  theme_classic()  +
+  theme(legend.position = "none") + theme(text = element_text(size=10))
+
+sc2 <- ggplot(CumulativeFstat_SC2, aes(x = c(1:10), y = iDA)) + 
+  geom_point(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_path(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_point(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Pseudo Cells", subtitle =  "Mixture 2") +
+  theme_classic()  +
+  theme(legend.position = "none") + theme(text = element_text(size=10))
+
+sc3 <- ggplot(CumulativeFstat_SC3, aes(x = c(1:10), y = iDA)) + 
+  geom_point(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_path(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_point(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Pseudo Cells", subtitle =  "Mixture 3") +
+  theme_classic() +
+  theme(legend.position = "none") + theme(text = element_text(size=10))
+
+
+sc4 <- ggplot(CumulativeFstat_SC4, aes(x = c(1:10), y = iDA)) + 
+  geom_point(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_path(aes(x = c(1:10), y = iDA, color = "iDA unsupervised")) +
+  geom_point(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_path(aes(x = c(1:10), y = iDAsup, color = "iDA Supervised")) +
+  geom_point(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  geom_path(aes(x = c(1:10), y = PCA, color = "PCA")) +
+  xlab("Dimension") + 
+  ylab("Cumulative F-statistic") +
+  ggtitle("Pseudo Cells", subtitle =  "Mixture 4") +
+  theme_classic() +
+  theme(legend.position = "bottom") + theme(text = element_text(size=10))
+
+
+(sc1PCA | sc2PCA | sc3PCA | sc4PCA) /
+(sc1 | sc2 | sc3 | sc4 )
+
+#ggsave("S9C.png", units="in", width=7, height = 4, dpi=300)
+```
+

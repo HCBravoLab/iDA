@@ -1,0 +1,79 @@
+---
+title: "PBMC iDA processing"
+author: "Theresa Alexander"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load iDA
+```{r}
+library(ggplot2)
+library(devtools)
+library(scran)
+library(iDA)
+library(Seurat)
+
+
+# Load the PBMC dataset
+pbmc.data <- Read10X(data.dir = "~/Desktop/iDA/filtered_gene_bc_matrices/hg19/")
+# Initialize the Seurat object with the raw (non-normalized data).
+pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k", min.cells = 3, min.features = 200)
+
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
+
+#get variable features
+stats <- scran::modelGeneVar(pbmc[["RNA"]]@data)
+var.features <- scran::getTopHVGs(stats, n = 3000)
+
+pbmc <- ScaleData(pbmc, features = var.features)
+
+```
+
+#run iDA on the PBMC data
+```{r}
+pbmc <- iDA(pbmc, assay = "RNA", set.seed = 11, diag = TRUE)
+```
+
+
+#get PCA data
+```{r}
+pbmc <- RunPCA(pbmc, features = var.features)
+```
+
+
+```{r}
+#iDA embedding and idents
+pbmc_iDA_ident = pbmc@meta.data$iDA_clust
+pbmc_iDAcellembedding = pbmc[["iDA"]]@cell.embeddings
+
+```
+
+
+#PCA on PBMC
+```{r}
+#embedding
+pbmc_PCAembedding = Embeddings(pbmc, reduction = "pca")[, 1:11]
+```
+
+#tSNE of iDA versus PCA embeddings
+```{r}
+#tSNE for PCA and iDA
+#run tSNE for each reduction
+  set.seed(10)
+  tsne_pca <- Rtsne(pbmc[["pca"]]@cell.embeddings[,1:11])
+  tsne_iDA <- Rtsne(pbmc[["iDA"]]@cell.embeddings[,1:11])
+
+  #tSNE plots for each reduction
+    ggplot(as.data.frame(tsne_pca$Y), aes(x = tsne_pca$Y[,1], y = tsne_pca$Y[,2], color = as.factor(Idents(pbmc_pca)))) +
+      geom_point() + labs(color = "Seurat Clusters") + xlab("tSNE 1") + ylab("tSNE 2") + ggtitle("tSNE of PCA cell embeddings") +
+      theme_classic()
+    ggplot(as.data.frame(tsne_iDA$Y), aes(x = tsne_iDA$Y[,1], y = tsne_iDA$Y[,2], color = as.factor(pbmc_iDA_ident))) + 
+      geom_point() + labs(color = "iDA Clusters") + xlab("tSNE 1") + ylab("tSNE 2") + ggtitle("tSNE of iDA cell embeddings") +
+      theme_classic()
+```

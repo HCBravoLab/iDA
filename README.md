@@ -15,6 +15,6 @@ The package is available only on github, easiest way to install is using the `re
 
 ```r
 install.packages("remotes")
-remotes::install.github("hcbravolab/iDA")
+remotes::install_github("hcbravolab/iDA")
 ```
 

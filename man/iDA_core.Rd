@@ -6,21 +6,29 @@
 \usage{
 iDA_core(
   data.use,
-  scaled = FALSE,
+  NormCounts = NULL,
+  scaled = TRUE,
+  var.Features = "scran",
   mean.low.cutoff = 0.1,
   mean.high.cutoff = 8,
   dispersion.cutoff = 1,
   k.param = 10,
   prune.SNN = 1/15,
   dims.use = 10,
-  diag = FALSE,
-  set.seed = FALSE
+  diag = TRUE,
+  set.seed = FALSE,
+  c.param = NULL,
+  cluster.method = "walktrap"
 )
 }
 \arguments{
 \item{data.use}{(data.frame) A dataframe of scaled data to find embedding for. (sample x feature)}
 
+\item{NormCounts}{(dataframe) A dataframe of normalized counts}
+
 \item{scaled}{(boolean) An indicator of if the data has already been normalized and scaled.}
+
+\item{var.Features}{Which method to use when finding variable features}
 
 \item{mean.low.cutoff}{(numeric) Bottom cutoff on mean for identifying variable genes, passed to function [`VariableGenes`]}
 
@@ -43,6 +51,10 @@ graph (e.g. To use the first 10 PCs, pass 1:10) (passed to [`getSNN`])}
 within each cluster)}
 
 \item{set.seed}{(numeric or FALSE) seed random number generator before building KNN graph. (passed to [`getSNN`])}
+
+\item{c.param}{(numeric) Defines the number of desired clusters to be found in the embedding}
+
+\item{cluster.method}{What clustering method to use}
 }
 \value{
 n number of dataframes for each cluster's data

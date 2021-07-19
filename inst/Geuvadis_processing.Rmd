@@ -1,0 +1,110 @@
+---
+title: "Geauvadis iDA processing"
+author: "Theresa Alexander reesyxan@umd.edu"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load iDA
+```{r}
+source("~/Desktop/iDA/R/iDA.R")
+source("~/Desktop/iDA/R/LDA.R")
+library(iDA)
+```
+
+
+# Get Geuvadis count data and sample phenotype data
+
+This dataset is the Geuvadis study, which completed bulk RNAseq on the 1000 genomes samples of known ancestral background. The raw data can be found here: 
+
+https://www.ebi.ac.uk/arrayexpress/experiments/E-GEUV-1/files/analysis_results/
+
+```{r}
+#read in data table
+GVD <- read.table("~/Desktop/iDA/GD660.GeneQuantCount.txt", header = TRUE, row.names = "Gene_Symbol")
+
+#subset columns for sample counts and remove duplicate samples
+GVD <- data.matrix(GVD[,4:663])
+samples <- colnames(GVD)
+samples <- strsplit(samples, ".", fixed = TRUE)
+samples <- do.call(rbind, samples)[,1]
+colnames(GVD) <- samples
+GVD <- GVD[, !duplicated(colnames(GVD))]
+
+#rounded count values because Array Express uses an EM algorithm for alignment and can result in non-integer counts. Deseq requires integer values
+GVD <- round(GVD)
+
+coldata <- read.csv("~/Desktop/iDA_files/datasets/Geuvadis/E-GEUV-3.sdrf.csv",  header = TRUE, row.names = "AssayName")
+coldata <- coldata[coldata$SampleName %in% samples,]
+rownames(coldata) <- coldata$SampleName
+
+#check if order of rows and cols are the same
+all(rownames(coldata) %in% colnames(GVD))
+all(rownames(coldata) == colnames(GVD))
+
+dds <- DESeqDataSetFromMatrix(countData = GVD,
+                              colData = coldata, design = ~ Population)
+
+#get rid of low count genes
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+#normalize counts
+dds <- estimateSizeFactors(dds)
+normalized_counts <- counts(dds, normalized=TRUE)
+
+#variance stabilizing transformation
+vsc_dds <- varianceStabilizingTransformation(dds, blind = TRUE)
+GVD <- assay(vsc_dds)
+
+```
+
+
+# Run iDA on GVD data
+```{r}
+#run iDA
+GVD_iDA <- iDA_core(data.use = as.matrix(GVD), 
+                    NormCounts = as.matrix(GVD), 
+                    set.seed = 11, 
+                    var.Features = "disp")
+
+#save iDA embedding and idents
+GVD_iDA_ident = GVD_iDA[[1]]
+GVD_iDAembedding = GVD_iDA[[2]]
+
+rownames(GVD_iDAembedding) = colnames(GVD)
+GVD_iDAembedding = cbind(GVD_iDAembedding, coldata_pop_lab[ rownames(GVD_iDAembedding),])
+```
+
+
+# PCA on GVD 
+```{r}
+#find same variable features
+var.features <- GVD_iDA[[4]]
+
+#embedding
+GVD_PCAembedding = svd(GVD[var.features,])$v
+```
+
+
+# tSNE on iDA embedding versus PCA embedding
+```{r}
+library(Rtsne)
+library(ggplot2)
+
+GVD_iDA_tsne <- Rtsne(GVD_iDAembedding[,1:ncol(GVD_iDA[[2]])])
+GVD_PCA_tsne <- Rtsne(GVD_PCAembedding[,1:ncol(GVD_iDA[[2]])])
+
+
+ggplot(as.data.frame(GVD_iDA_tsne$Y), aes(x=GVD_iDA_tsne$Y[,1], y = GVD_iDA_tsne$Y[,2], color = coldata$Population)) + 
+  geom_point() +
+  ggtitle("tSNE of iDA embedding")
+
+ggplot(as.data.frame(GVD_PCA_tsne$Y), aes(x=GVD_PCA_tsne$Y[,1], y = GVD_PCA_tsne$Y[,2], color = coldata$Population)) + 
+  geom_point() +
+  ggtitle("tSNE of PCA embedding")
+
+```
